@@ -353,16 +353,24 @@
   .shop-head { border-top: 1px solid var(--divider); padding-top: 16px; }
 
   /* ---------- quotes ---------- */
+  .quote-badge { font-size: 10.5px; font-weight: 640; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); border: 1px solid var(--card-border); border-radius: 999px; padding: 3px 9px; margin-left: 8px; vertical-align: middle; white-space: nowrap; }
+  .quote-badge.saved { color: var(--accent); border-color: var(--accent-soft-border); background: var(--accent-soft); }
+  [data-theme="light"] .quote-badge.saved { color: var(--accent-strong); }
+  .quote-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  @media (max-width: 560px) { .quote-fields { grid-template-columns: 1fr; } }
+  .quote-fields input { width: 100%; font-size: 14.5px; font-weight: 500; }
   .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .quote-toolbar .grow { flex: 1 1 200px; }
-  .quote-name-input { width: 100%; font-size: 14.5px; font-weight: 540; }
+  .saved-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; margin-top: 22px; }
   .saved-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .saved-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bg-alt); border: 1px solid var(--card-border); border-radius: 11px; cursor: pointer; transition: border-color 0.12s ease; }
   .saved-item:hover { border-color: var(--accent-soft-border); }
   .saved-item.active { border-color: var(--accent); background: var(--accent-soft); }
   .saved-item .si-main { flex: 1; min-width: 0; }
   .saved-item .si-name { font-size: 14px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .saved-item .si-meta { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
+  .saved-item .si-num { display: inline-block; font-size: 11.5px; font-weight: 680; color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 7px; }
+  [data-theme="light"] .saved-item .si-num { color: var(--accent-strong); }
+  .saved-item .si-meta { font-size: 12px; color: var(--text-faint); margin-top: 2px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item .si-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .saved-empty { font-size: 13px; color: var(--text-faint); padding: 6px 2px; }
 
   .status { font-size: 12.5px; color: var(--text-faint); min-height: 16px; }
@@ -682,15 +690,16 @@
   <div class="card">
     <div class="card-head">
       <div>
-        <h2>Quote</h2>
-        <p class="sub">Name it, save it, recall it later, or send it out.</p>
+        <h2>Quote <span class="quote-badge" id="quoteBadge">New &middot; unsaved</span></h2>
+        <p class="sub">Save the whole job, reload it later, or send it out.</p>
       </div>
       <span class="status" id="quoteStatus"></span>
     </div>
+    <div class="quote-fields">
+      <input type="text" id="quoteCustomer" placeholder="Customer (e.g. Acme Co.)">
+      <input type="text" id="quoteProduct" placeholder="Product / description (e.g. Feeder cup mounts)">
+    </div>
     <div class="quote-toolbar">
-      <div class="grow">
-        <input type="text" id="quoteName" class="quote-name-input" placeholder="Quote name (e.g. Acme &mdash; 25 enclosures)">
-      </div>
       <button class="btn primary" id="saveQuoteBtn">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
         Save quote
@@ -701,7 +710,8 @@
         Send
       </button>
     </div>
-    <div class="saved-list" id="savedList" style="margin-top:16px;"></div>
+    <div class="saved-title" id="savedTitle"></div>
+    <div class="saved-list" id="savedList" style="margin-top:12px;"></div>
   </div>
 
   <footer id="footerNote">Your quotes are saved to your account and synced across devices. Also cached in this browser so it works offline.</footer>
@@ -808,7 +818,8 @@
     ];
   }
 
-  var state = { quantity: 25, parts: [], hardware: [], assembly: 0, packing: 0, shipping: 0, adjust: 0,
+  var state = { quantity: 25, parts: [], hardware: [], customer: "", product: "",
+    assembly: 0, packing: 0, shipping: 0, adjust: 0,
     discountType: "percent", discountValue: 0, depositPct: 0,
     printers: 2, hoursPerDay: 8, workDays: [1, 2, 3, 4, 5] };
   var quotes = [];
@@ -865,7 +876,10 @@
     discSeg: document.getElementById("discSeg"),
     discValue: document.getElementById("discValue"),
     depositPct: document.getElementById("depositPct"),
-    quoteName: document.getElementById("quoteName"),
+    quoteCustomer: document.getElementById("quoteCustomer"),
+    quoteProduct: document.getElementById("quoteProduct"),
+    quoteBadge: document.getElementById("quoteBadge"),
+    savedTitle: document.getElementById("savedTitle"),
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
     sendQuoteBtn: document.getElementById("sendQuoteBtn"),
@@ -1375,7 +1389,11 @@
     state.printers = Math.max(1, Math.floor(num(state.printers, 2)));
     state.hoursPerDay = Math.min(24, Math.max(1, num(state.hoursPerDay, 8)));
     if (!Array.isArray(state.workDays) || !state.workDays.length) state.workDays = [1, 2, 3, 4, 5];
+    state.customer = String(state.customer || "");
+    state.product = String(state.product || "");
     els.qtyInput.value = state.quantity;
+    els.quoteCustomer.value = state.customer;
+    els.quoteProduct.value = state.product;
     renderOrderInputs();
     renderProductionInputs();
     renderHardware();
@@ -1465,6 +1483,21 @@
   }
   function loadQuotes() {
     try { var raw = localStorage.getItem(QUOTES_KEY); if (raw) { var q = JSON.parse(raw); if (Array.isArray(q)) quotes = q; } } catch (e) {}
+    migrateQuotes();
+  }
+
+  // Bring older saved quotes (from before numbers/customer/product) up to the new shape.
+  function migrateQuotes() {
+    var changed = false;
+    quotes.forEach(function (q) {
+      var s = q.state || {};
+      if (!q.number) { q.number = allocateNumber(); changed = true; }       // allocateNumber sees ones already assigned
+      if (q.customer == null) { q.customer = s.customer || ""; changed = true; }
+      if (q.product == null) { q.product = s.product || q.name || ""; changed = true; }
+      if (q.quantity == null) { q.quantity = s.quantity || 0; changed = true; }
+      if (q.total === undefined) { q.total = null; changed = true; }
+    });
+    if (changed) persistQuotes();
   }
 
   function setStatus(msg, kind) {
@@ -1481,80 +1514,127 @@
       d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
   }
 
-  function saveQuote() {
-    var name = els.quoteName.value.trim();
-    if (!name) { name = "Untitled quote"; els.quoteName.value = name; }
-    var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)),
-      hardware: JSON.parse(JSON.stringify(state.hardware)),
+  function allocateNumber() {
+    var max = 1000;
+    quotes.forEach(function (q) {
+      var m = q.number && /^Q(\d+)$/.exec(q.number);
+      if (m) { var v = parseInt(m[1], 10); if (v > max) max = v; }
+    });
+    return "Q" + (max + 1);
+  }
+
+  function currentSnapshot() {
+    return {
+      quantity: state.quantity, customer: state.customer, product: state.product,
+      parts: JSON.parse(JSON.stringify(state.parts)), hardware: JSON.parse(JSON.stringify(state.hardware)),
       assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust,
       discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct,
-      printers: state.printers, hoursPerDay: state.hoursPerDay, workDays: state.workDays.slice() };
+      printers: state.printers, hoursPerDay: state.hoursPerDay, workDays: state.workDays.slice()
+    };
+  }
+
+  function updateQuoteBadge() {
+    var q = activeQuoteId && quotes.find(function (x) { return x.id === activeQuoteId; });
+    if (q) { els.quoteBadge.textContent = "Editing " + q.number; els.quoteBadge.classList.add("saved"); }
+    else { els.quoteBadge.textContent = "New · unsaved"; els.quoteBadge.classList.remove("saved"); }
+  }
+
+  function saveQuote() {
+    state.customer = els.quoteCustomer.value.trim();
+    state.product = els.quoteProduct.value.trim();
+    var snapshot = currentSnapshot();
+    var total = computePricing().grandTotal;
     var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
     if (existing) {
-      existing.name = name; existing.updated = isoNow(); existing.state = snapshot;
-      setStatus("Quote updated.", "ok");
+      existing.customer = state.customer; existing.product = state.product;
+      existing.quantity = state.quantity; existing.total = total;
+      existing.updated = isoNow(); existing.state = snapshot;
+      setStatus(existing.number + " updated.", "ok");
     } else {
-      var q = { id: "q" + uid(), name: name, created: isoNow(), updated: isoNow(), state: snapshot };
+      var q = { id: "q" + uid(), number: allocateNumber(), customer: state.customer, product: state.product,
+        quantity: state.quantity, total: total, created: isoNow(), updated: isoNow(), state: snapshot };
       quotes.unshift(q); activeQuoteId = q.id;
-      setStatus("Quote saved.", "ok");
+      setStatus("Saved as " + q.number + ".", "ok");
     }
-    persistQuotes(); renderSaved();
+    persist(); persistQuotes(); renderSaved(); updateQuoteBadge();
+  }
+
+  function applyQuoteState(s) {
+    state = {
+      quantity: s.quantity, customer: String(s.customer || ""), product: String(s.product || ""),
+      parts: JSON.parse(JSON.stringify(s.parts || [])),
+      hardware: Array.isArray(s.hardware) ? JSON.parse(JSON.stringify(s.hardware)) : [],
+      assembly: num(s.assembly, 0), packing: num(s.packing, 0), shipping: num(s.shipping, 0), adjust: num(s.adjust, 0),
+      discountType: s.discountType === "flat" ? "flat" : "percent",
+      discountValue: num(s.discountValue, 0), depositPct: num(s.depositPct, 0),
+      printers: Math.max(1, Math.floor(num(s.printers, 2))),
+      hoursPerDay: Math.min(24, Math.max(1, num(s.hoursPerDay, 8))),
+      workDays: Array.isArray(s.workDays) && s.workDays.length ? s.workDays.slice() : [1, 2, 3, 4, 5]
+    };
+    els.qtyInput.value = state.quantity;
+    els.quoteCustomer.value = state.customer;
+    els.quoteProduct.value = state.product;
+    renderOrderInputs(); renderProductionInputs(); renderHardware();
+    persist(); render(); renderSaved(); updateQuoteBadge();
   }
 
   function recallQuote(id) {
     var q = quotes.find(function (x) { return x.id === id; });
     if (!q) return;
-    state = { quantity: q.state.quantity, parts: JSON.parse(JSON.stringify(q.state.parts)),
-      assembly: num(q.state.assembly, 0), packing: num(q.state.packing, 0),
-      shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0),
-      discountType: q.state.discountType === "flat" ? "flat" : "percent",
-      discountValue: num(q.state.discountValue, 0), depositPct: num(q.state.depositPct, 0),
-      hardware: Array.isArray(q.state.hardware) ? JSON.parse(JSON.stringify(q.state.hardware)) : [],
-      printers: Math.max(1, Math.floor(num(q.state.printers, 2))),
-      hoursPerDay: Math.min(24, Math.max(1, num(q.state.hoursPerDay, 8))),
-      workDays: Array.isArray(q.state.workDays) && q.state.workDays.length ? q.state.workDays.slice() : [1, 2, 3, 4, 5] };
     activeQuoteId = id;
-    els.qtyInput.value = state.quantity;
-    els.quoteName.value = q.name;
-    renderOrderInputs();
-    renderProductionInputs();
-    renderHardware();
-    persist(); render(); renderSaved();
-    setStatus("Loaded “" + q.name + "”.", "ok");
+    applyQuoteState(q.state);
+    setStatus("Loaded " + q.number + ".", "ok");
+  }
+
+  function duplicateQuote(id) {
+    var q = quotes.find(function (x) { return x.id === id; });
+    if (!q) return;
+    activeQuoteId = null;                 // opens as a fresh, unsaved copy
+    applyQuoteState(q.state);
+    setStatus("Opened a copy of " + q.number + " — unsaved. Save to create a new quote.", "ok");
   }
 
   function deleteQuote(id) {
     quotes = quotes.filter(function (x) { return x.id !== id; });
     if (activeQuoteId === id) activeQuoteId = null;
-    persistQuotes(); renderSaved();
+    persistQuotes(); renderSaved(); updateQuoteBadge();
     setStatus("Quote deleted.");
   }
 
   function newQuote() {
     activeQuoteId = null;
-    els.quoteName.value = "";
-    renderSaved();
-    setStatus("Started a new quote. Existing plates kept — rename and save.");
+    state.customer = ""; state.product = "";
+    els.quoteCustomer.value = ""; els.quoteProduct.value = "";
+    persist(); renderSaved(); updateQuoteBadge();
+    setStatus("Started a new quote. Current plates kept — edit and save.");
   }
 
   function renderSaved() {
+    els.savedTitle.textContent = quotes.length ? "Saved quotes (" + quotes.length + ")" : "";
     if (!quotes.length) {
-      els.savedList.innerHTML = '<div class="saved-empty">No saved quotes yet. Name a quote above and click Save.</div>';
+      els.savedList.innerHTML = '<div class="saved-empty">No saved quotes yet. Fill in customer &amp; product above and click Save quote.</div>';
       return;
     }
-    var qty = function (q) { return q.state ? q.state.quantity : 0; };
-    var included = function (q) { return q.state && q.state.parts ? q.state.parts.filter(function (p) { return p.included; }).length : 0; };
     els.savedList.innerHTML = quotes.map(function (q) {
+      var cust = esc(q.customer || "No customer");
+      var prod = esc(q.product || "Untitled");
+      var meta = fmtInt(q.quantity || 0) + " units · " + (q.total != null ? money(q.total) : "—") + " · " + fmtDate(q.updated);
       return '<div class="saved-item ' + (q.id === activeQuoteId ? "active" : "") + '" data-id="' + q.id + '">' +
-        '<div class="si-main"><div class="si-name">' + esc(q.name) + '</div>' +
-          '<div class="si-meta num">' + fmtInt(qty(q)) + ' units · ' + included(q) + ' plates · ' + fmtDate(q.updated) + '</div></div>' +
-        '<button class="btn small" data-act="load">Open</button>' +
-        '<button class="row-del" data-act="del" title="Delete quote"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>' +
+        '<div class="si-main">' +
+          '<div class="si-name"><span class="si-num">' + esc(q.number || "—") + '</span>' + cust + '</div>' +
+          '<div class="si-meta">' + prod + ' · ' + meta + '</div>' +
+        '</div>' +
+        '<div class="si-actions">' +
+          '<button class="btn small" data-act="load">Load</button>' +
+          '<button class="btn small ghost" data-act="dup">Duplicate</button>' +
+          '<button class="row-del" data-act="del" title="Delete quote"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>' +
+        '</div>' +
       '</div>';
     }).join("");
     els.savedList.querySelectorAll(".saved-item").forEach(function (item) {
       var id = item.getAttribute("data-id");
       item.querySelector('[data-act="load"]').addEventListener("click", function (e) { e.stopPropagation(); recallQuote(id); });
+      item.querySelector('[data-act="dup"]').addEventListener("click", function (e) { e.stopPropagation(); duplicateQuote(id); });
       item.querySelector('[data-act="del"]').addEventListener("click", function (e) { e.stopPropagation(); deleteQuote(id); });
       item.addEventListener("click", function () { recallQuote(id); });
     });
@@ -1562,9 +1642,13 @@
 
   function buildSummary() {
     var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
-    var name = els.quoteName.value.trim() || "Untitled quote";
+    var product = els.quoteProduct.value.trim() || "Untitled";
+    var customer = els.quoteCustomer.value.trim();
+    var activeQ = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
+    var name = (activeQ ? activeQ.number + " — " : "") + product;
     var lines = [];
-    lines.push("QUOTE: " + name);
+    lines.push("QUOTE" + (activeQ ? " " + activeQ.number : "") + ": " + product);
+    if (customer) lines.push("Customer: " + customer);
     lines.push("Quantity: " + fmtInt(qty) + " units");
     lines.push("");
     lines.push("Bill of materials");
@@ -1905,6 +1989,8 @@
     state.hoursPerDay = Math.min(24, Math.max(1, num(els.prodHours.value, 8))); persist(); renderProduction();
   });
 
+  els.quoteCustomer.addEventListener("input", function () { state.customer = els.quoteCustomer.value; persist(); });
+  els.quoteProduct.addEventListener("input", function () { state.product = els.quoteProduct.value; persist(); });
   els.saveQuoteBtn.addEventListener("click", saveQuote);
   els.newQuoteBtn.addEventListener("click", newQuote);
   els.sendQuoteBtn.addEventListener("click", openSend);
@@ -2063,7 +2149,7 @@
   // hooks for the cloud layer
   window.__qb = {
     getQuotes: function () { return quotes; },
-    setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); } }
+    setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; migrateQuotes(); try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); updateQuoteBadge(); } }
   };
 
   loadTheme();
@@ -2072,6 +2158,7 @@
   loadQuotes();
   render();
   renderSaved();
+  updateQuoteBadge();
 })();
 </script>
 
