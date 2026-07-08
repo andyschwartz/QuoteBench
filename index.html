@@ -349,6 +349,8 @@
   .tag.overnight { color: var(--info); background: rgba(103,179,250,0.12); }
   .tag.cycle { color: var(--accent); background: var(--accent-soft); }
   [data-theme="light"] .tag.cycle { color: var(--accent-strong); }
+  .shop-wrap { margin-top: 22px; }
+  .shop-head { border-top: 1px solid var(--divider); padding-top: 16px; }
 
   /* ---------- quotes ---------- */
   .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -668,6 +670,10 @@
         <div class="stat"><div class="k">Printer utilization</div><div class="v num" id="prodUtil">—</div></div>
       </div>
       <div class="prod-list" id="prodList"></div>
+      <div id="shopWrap" class="shop-wrap">
+        <div class="bd-group shop-head">Shopping list <span class="internal-badge">buy before the run</span></div>
+        <div class="breakdown" id="shopList"></div>
+      </div>
     </div>
     <div class="price-empty" id="prodEmpty">Load or drop plates to plan the run.</div>
   </div>
@@ -847,6 +853,8 @@
     prodBench: document.getElementById("prodBench"),
     prodUtil: document.getElementById("prodUtil"),
     prodList: document.getElementById("prodList"),
+    shopWrap: document.getElementById("shopWrap"),
+    shopList: document.getElementById("shopList"),
     hwRows: document.getElementById("hwRows"),
     hwEmpty: document.getElementById("hwEmpty"),
     addHwBtn: document.getElementById("addHwBtn"),
@@ -1319,6 +1327,43 @@
         '<div class="pi-meta">' + fmtTime(t.minutes) + ' each · ' + fmtInt(t.count) + (t.count === 1 ? " plate" : " plates") + '</div></div>' +
         tag + '</div>';
     }).join("");
+
+    renderShoppingList();
+  }
+
+  // Whole-unit purchases to take to the supplier — real spend, no markup.
+  function renderShoppingList() {
+    var pr = computePricing();
+    function group(label) { return '<div class="bd-group">' + esc(label) + '</div>'; }
+    function shopRow(labelHtml, note, amt, warn) {
+      return '<div class="bd-row"><div class="bd-label">' + labelHtml +
+        (note ? '<span class="bd-note' + (warn ? ' warn' : '') + '">' + esc(note) + '</span>' : '') +
+        '</div><div class="bd-amt num">' + amt + '</div></div>';
+    }
+
+    var sh = "";
+    if (pr.realFilamentLines.length) {
+      sh += group("Filament — whole spools");
+      pr.realFilamentLines.forEach(function (fl) {
+        var chip = fl.hex ? '<span class="chip" style="display:inline-block;vertical-align:-2px;width:11px;height:11px;background:' + esc(fl.hex) + '"></span> ' : '';
+        if (fl.priced) {
+          sh += shopRow(chip + esc(fl.type), fmtInt(fl.grams) + " g ÷ " + fmtInt(fl.rollGrams) + " → " + fmtInt(fl.spools) + (fl.spools === 1 ? " spool" : " spools"), money(fl.cost));
+        } else {
+          sh += shopRow(chip + esc(fl.type), fmtInt(fl.grams) + " g needed — add roll size in Settings", "—", true);
+        }
+      });
+    }
+    if (pr.hwLines.length) {
+      sh += group("Hardware — whole packs");
+      pr.hwLines.forEach(function (h) {
+        sh += shopRow(esc(h.name), fmtInt(h.piecesNeeded) + " pcs ÷ " + fmtInt(h.packQty) + " → " + fmtInt(h.packs) + (h.packs === 1 ? " pack" : " packs"), money(h.spend));
+      });
+    }
+
+    if (!sh) { els.shopWrap.style.display = "none"; return; }
+    els.shopWrap.style.display = "";
+    sh += '<div class="bd-row bd-total"><div class="bd-label">Total to buy<span class="bd-note">real supplier spend, no markup</span></div><div class="bd-amt num">' + money(pr.filamentReal + pr.hwSpend) + '</div></div>';
+    els.shopList.innerHTML = sh;
   }
 
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
