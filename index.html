@@ -434,54 +434,8 @@
   .quote-notes { margin-bottom: 12px; min-height: 44px; }
   .quote-fields .field input[type="date"] { width: 100%; }
 
-  /* ---------- customer print sheet ---------- */
-  #printSheet { display: none; }
-  @media screen { #printSheet { display: none !important; } }
-  @media print {
-    html, body { background: #fff !important; margin: 0; padding: 0; }
-    body { display: block !important; }
-    body > *:not(#printSheet) { display: none !important; }
-    #printSheet { display: block !important; }
-  }
-  @page { margin: 16mm; }
-
-  #printSheet {
-    color: #1a1a1a; background: #fff; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    font-size: 12px; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  }
-  #printSheet .pq { max-width: 720px; margin: 0 auto; }
-  #printSheet .pq-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 2px solid #14b8a6; padding-bottom: 16px; }
-  #printSheet .pq-brand { display: flex; gap: 14px; align-items: center; }
-  #printSheet .pq-logo { max-height: 64px; max-width: 180px; object-fit: contain; }
-  #printSheet .pq-co-name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #111; }
-  #printSheet .pq-contact { text-align: right; font-size: 11px; color: #555; line-height: 1.6; white-space: pre-line; }
-  #printSheet .pq-titlebar { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 22px; }
-  #printSheet .pq-title { font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: #0f766e; text-transform: uppercase; }
-  #printSheet .pq-meta { text-align: right; font-size: 12px; color: #333; }
-  #printSheet .pq-meta .row { display: flex; justify-content: flex-end; gap: 12px; }
-  #printSheet .pq-meta .k { color: #777; }
-  #printSheet .pq-meta .v { min-width: 96px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-  #printSheet .pq-parties { margin-top: 22px; display: flex; gap: 40px; }
-  #printSheet .pq-parties .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 3px; }
-  #printSheet .pq-parties .val { font-size: 13px; font-weight: 600; color: #111; }
-  #printSheet table.pq-items { width: 100%; border-collapse: collapse; margin-top: 24px; }
-  #printSheet table.pq-items th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; padding: 0 0 8px; border-bottom: 1px solid #ddd; }
-  #printSheet table.pq-items th.r { text-align: right; }
-  #printSheet table.pq-items td { padding: 9px 0; border-bottom: 1px solid #eee; font-size: 12.5px; }
-  #printSheet table.pq-items td.r { text-align: right; font-variant-numeric: tabular-nums; }
-  #printSheet table.pq-items td .sub { font-size: 10.5px; color: #888; }
-  #printSheet .pq-total-row td { border-top: 2px solid #333; border-bottom: none; padding-top: 12px; font-weight: 700; font-size: 14px; }
-  #printSheet .pq-perunit { display: flex; justify-content: space-between; align-items: baseline; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
-  #printSheet .pq-perunit .lbl { font-size: 12px; color: #0f766e; font-weight: 600; }
-  #printSheet .pq-perunit .amt { font-size: 22px; font-weight: 700; color: #0f766e; font-variant-numeric: tabular-nums; }
-  #printSheet .pq-pay { margin-top: 16px; display: flex; gap: 12px; }
-  #printSheet .pq-pay .box { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 11px 14px; }
-  #printSheet .pq-pay .box .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
-  #printSheet .pq-pay .box .v { font-size: 16px; font-weight: 700; color: #111; margin-top: 3px; font-variant-numeric: tabular-nums; }
-  #printSheet .pq-note-block { margin-top: 20px; font-size: 12px; color: #333; }
-  #printSheet .pq-note-block .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 4px; }
-  #printSheet .pq-note-block .body { white-space: pre-line; }
-  #printSheet .pq-foot { margin-top: 28px; padding-top: 14px; border-top: 1px solid #eee; font-size: 11px; color: #888; text-align: center; }
+  /* The customer print sheet is rendered into an isolated iframe (see PRINT_CSS in JS),
+     so it needs no styles in the app document. */
 </style>
 </head>
 <body>
@@ -900,9 +854,6 @@
   </div>
 </div>
 
-<!-- customer-facing print sheet (screen-hidden; shown only when printing) -->
-<div id="printSheet" aria-hidden="true"></div>
-
 <!-- ============ core app ============ -->
 <script>
 (function () {
@@ -993,7 +944,6 @@
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
     printQuoteBtn: document.getElementById("printQuoteBtn"),
-    printSheet: document.getElementById("printSheet"),
     sendQuoteBtn: document.getElementById("sendQuoteBtn"),
     savedList: document.getElementById("savedList"),
     quoteStatus: document.getElementById("quoteStatus"),
@@ -1847,6 +1797,44 @@
   }
 
   // ---------- customer-facing print / PDF ----------
+  var PRINT_CSS =
+    '*{box-sizing:border-box;}' +
+    'html,body{margin:0;padding:0;background:#fff;color:#1a1a1a;font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+    '@page{margin:16mm;}' +
+    '.pq{max-width:720px;margin:0 auto;}' +
+    '.pq-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;border-bottom:2px solid #14b8a6;padding-bottom:16px;}' +
+    '.pq-brand{display:flex;gap:14px;align-items:center;}' +
+    '.pq-logo{max-height:64px;max-width:180px;object-fit:contain;}' +
+    '.pq-co-name{font-size:20px;font-weight:700;letter-spacing:-0.01em;color:#111;}' +
+    '.pq-contact{text-align:right;font-size:11px;color:#555;line-height:1.6;white-space:pre-line;}' +
+    '.pq-titlebar{display:flex;justify-content:space-between;align-items:flex-start;margin-top:22px;}' +
+    '.pq-title{font-size:26px;font-weight:700;letter-spacing:0.08em;color:#0f766e;text-transform:uppercase;}' +
+    '.pq-meta{text-align:right;font-size:12px;color:#333;}' +
+    '.pq-meta .row{display:flex;justify-content:flex-end;gap:12px;}' +
+    '.pq-meta .k{color:#777;}' +
+    '.pq-meta .v{min-width:96px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}' +
+    '.pq-parties{margin-top:22px;display:flex;gap:40px;}' +
+    '.pq-parties .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#888;margin-bottom:3px;}' +
+    '.pq-parties .val{font-size:13px;font-weight:600;color:#111;}' +
+    'table.pq-items{width:100%;border-collapse:collapse;margin-top:24px;}' +
+    'table.pq-items th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#888;padding:0 0 8px;border-bottom:1px solid #ddd;}' +
+    'table.pq-items th.r{text-align:right;}' +
+    'table.pq-items td{padding:9px 0;border-bottom:1px solid #eee;font-size:12.5px;}' +
+    'table.pq-items td.r{text-align:right;font-variant-numeric:tabular-nums;}' +
+    'table.pq-items td .sub{font-size:10.5px;color:#888;}' +
+    '.pq-total-row td{border-top:2px solid #333;border-bottom:none;padding-top:12px;font-weight:700;font-size:14px;}' +
+    '.pq-perunit{display:flex;justify-content:space-between;align-items:baseline;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:12px 16px;margin-top:16px;}' +
+    '.pq-perunit .lbl{font-size:12px;color:#0f766e;font-weight:600;}' +
+    '.pq-perunit .amt{font-size:22px;font-weight:700;color:#0f766e;font-variant-numeric:tabular-nums;}' +
+    '.pq-pay{margin-top:16px;display:flex;gap:12px;}' +
+    '.pq-pay .box{flex:1;border:1px solid #ddd;border-radius:8px;padding:11px 14px;}' +
+    '.pq-pay .box .k{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#888;}' +
+    '.pq-pay .box .v{font-size:16px;font-weight:700;color:#111;margin-top:3px;font-variant-numeric:tabular-nums;}' +
+    '.pq-note-block{margin-top:20px;font-size:12px;color:#333;}' +
+    '.pq-note-block .lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#888;margin-bottom:4px;}' +
+    '.pq-note-block .body{white-space:pre-line;}' +
+    '.pq-foot{margin-top:28px;padding-top:14px;border-top:1px solid #eee;font-size:11px;color:#888;text-align:center;}';
+
   function pRow(label, sub, amt) {
     return '<tr><td>' + esc(label) + (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') + '</td><td class="r">' + amt + '</td></tr>';
   }
@@ -1920,18 +1908,36 @@
     return { html: html, number: number, customer: customer };
   }
 
+  // Print an isolated iframe of just the quote — the browser only lays out one page,
+  // not the whole app, so the dialog opens much faster and there's no on-screen flash.
   function printQuote() {
     if (!state.parts.some(function (p) { return p.included; })) { setStatus("Add or include at least one plate first.", "err"); return; }
     var built = buildPrintSheet();
-    els.printSheet.innerHTML = built.html;
     var cust = sanitizeFilename(built.customer);
     var fname = sanitizeFilename(built.number + (cust && cust !== "—" ? " - " + cust : "")) || "Quote";
-    var prev = document.title;
-    document.title = fname;
-    var restore = function () { document.title = prev; window.removeEventListener("afterprint", restore); };
-    window.addEventListener("afterprint", restore);
-    window.print();
-    setTimeout(restore, 2000);   // fallback if afterprint doesn't fire
+
+    var prevTitle = document.title;
+    document.title = fname;   // some browsers use the top document's title for the PDF filename
+
+    var iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+    document.body.appendChild(iframe);
+    var idoc = iframe.contentWindow.document;
+    idoc.open();
+    idoc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(fname) +
+      '</title><style>' + PRINT_CSS + '</style></head><body>' + built.html + '</body></html>');
+    idoc.close();
+
+    var done = false;
+    function go() {
+      if (done) return; done = true;
+      try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+      setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); document.title = prevTitle; }, 1000);
+    }
+    var img = idoc.querySelector("img");
+    if (img && !img.complete) { img.addEventListener("load", go); img.addEventListener("error", go); setTimeout(go, 700); }
+    else { setTimeout(go, 20); }   // let the tiny doc lay out, then print
   }
 
   function applyTheme(t) {
@@ -2444,6 +2450,7 @@
   window.__qb = {
     getQuotes: function () { return quotes; },
     setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; migrateQuotes(); try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); updateQuoteBadge(); } },
+    previewQuoteHtml: function () { return buildPrintSheet().html; },
     getSettings: function () { return settings; },
     setSettings: function (obj) {
       if (!obj) return;
