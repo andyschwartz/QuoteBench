@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuoteBench</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232dd4bf'/%3E%3Cpath d='M8 22V10m0 12h16M8 10h9m-9 6h13' fill='none' stroke='%230a1512' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1113;
+    --bg-alt: #14181b;
+    --card: #181d20;
+    --card-border: #262d31;
+    --text: #eef2f2;
+    --text-muted: #a4b0b2;
+    --text-faint: #7d898c;
+    --accent: #2dd4bf;
+    --accent-strong: #4be3d1;
+    --accent-text: #071411;
+    --accent-soft: rgba(45,212,191,0.12);
+    --accent-soft-border: rgba(45,212,191,0.35);
+    --danger: #ec7466;
+    --danger-bg: rgba(226,104,90,0.1);
+    --danger-border: rgba(226,104,90,0.35);
+    --info: #67b3fa;
+    --input-bg: #0b0f11;
+    --input-border: #2b3236;
+    --divider: #262d31;
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 16px 40px -12px rgba(0,0,0,0.55);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --focus-ring: 0 0 0 3px rgba(45,212,191,0.28);
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f4f5f6;
+    --bg-alt: #ebedee;
+    --card: #ffffff;
+    --card-border: #e2e5e7;
+    --text: #171a1c;
+    --text-muted: #5c666a;
+    --text-faint: #98a1a5;
+    --accent: #0d9488;
+    --accent-strong: #0b7d73;
+    --accent-text: #ffffff;
+    --accent-soft: rgba(13,148,136,0.09);
+    --accent-soft-border: rgba(13,148,136,0.3);
+    --danger: #c23b2d;
+    --danger-bg: rgba(194,59,45,0.08);
+    --danger-border: rgba(194,59,45,0.3);
+    --info: #1d4ed8;
+    --input-bg: #fafbfb;
+    --input-border: #d6dadd;
+    --divider: #e7e9eb;
+    --shadow: 0 1px 2px rgba(20,20,30,0.04), 0 16px 40px -14px rgba(20,20,30,0.16);
+    --shadow-sm: 0 1px 2px rgba(20,20,30,0.05);
+    --focus-ring: 0 0 0 3px rgba(13,148,136,0.22);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    line-height: 1.5;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px 72px;
+    transition: background-color 0.15s ease;
+  }
+
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+  :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  .app { width: 100%; min-width: 0; max-width: 1000px; }
+
+  /* ---------- floating theme toggle (works on gate + app) ---------- */
+  .icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--card-border);
+    color: var(--text-muted); cursor: pointer; padding: 0;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .icon-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  [data-theme="light"] .moon { display: none; }
+  [data-theme="light"] .sun { display: block; }
+  .sun { display: none; }
+  .moon { display: block; }
+
+  /* ---------- auth gate ---------- */
+  .auth-gate {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: var(--bg); z-index: 20;
+  }
+  .gate-card {
+    width: 100%; max-width: 400px; text-align: center;
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 20px; box-shadow: var(--shadow); padding: 40px 34px 34px;
+  }
+  .gate-logo { width: 52px; height: 52px; margin: 0 auto 18px; display: block; }
+  .gate-card h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; }
+  .gate-tag { font-size: 13px; color: var(--text-faint); margin: 0 0 22px; }
+  .auth-copy { font-size: 14px; color: var(--text-muted); line-height: 1.55; margin: 0 0 24px; }
+  .gate-btn { width: 100%; }
+  .auth-status { font-size: 12.5px; color: var(--text-faint); min-height: 18px; margin: 14px 0 0; }
+  .auth-status.err { color: var(--danger); }
+  .gate-theme { position: fixed; top: 20px; right: 20px; }
+
+  /* ---------- top bar ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 28px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .brand .logo-mark { width: 30px; height: 30px; flex-shrink: 0; }
+  .brand h1 { font-size: 22px; font-weight: 680; letter-spacing: -0.015em; margin: 0; white-space: nowrap; }
+  .brand .tag { font-size: 12.5px; color: var(--text-faint); white-space: nowrap; }
+  @media (max-width: 640px) { .brand .tag { display: none; } }
+
+  .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+  .btn {
+    font: inherit; font-size: 14px; font-weight: 560;
+    border-radius: 10px; padding: 0 16px; height: 42px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--card-border); background: var(--card); color: var(--text);
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 620; }
+  .btn.primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn.ghost { background: transparent; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.small { height: 34px; font-size: 13px; padding: 0 12px; border-radius: 8px; }
+  .g-icon { width: 17px; height: 17px; }
+
+  .account {
+    display: flex; align-items: center; gap: 9px;
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 999px; padding: 4px 5px 4px 12px; height: 42px;
+  }
+  .account .who { display: flex; flex-direction: column; line-height: 1.15; max-width: 150px; }
+  .account .who .nm { font-size: 12.5px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account .who .em { font-size: 11px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account img { width: 30px; height: 30px; border-radius: 999px; object-fit: cover; }
+  @media (max-width: 640px) { .account .who { display: none; } }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; box-shadow: var(--shadow-sm);
+    padding: 22px; margin-bottom: 20px;
+  }
+  .card > .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .card h2 { font-size: 15px; font-weight: 640; letter-spacing: -0.005em; margin: 0; }
+  .card .sub { font-size: 12.5px; color: var(--text-faint); margin: 2px 0 0; }
+
+  /* ---------- drop zone ---------- */
+  .dropzone {
+    border: 1.5px dashed var(--input-border); border-radius: 14px;
+    padding: 30px 22px; text-align: center; cursor: pointer;
+    background: var(--input-bg);
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone:hover { border-color: var(--accent-soft-border); }
+  .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone .dz-icon { width: 34px; height: 34px; color: var(--accent); margin: 0 auto 10px; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .dropzone .dz-title { font-size: 14.5px; font-weight: 580; }
+  .dropzone .dz-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 4px; }
+  .dz-note {
+    margin-top: 14px; font-size: 12.5px; color: var(--info);
+    background: rgba(103,179,250,0.09); border: 1px solid rgba(103,179,250,0.25);
+    border-radius: 9px; padding: 8px 12px; display: none;
+  }
+  .dz-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+  /* ---------- quantity ---------- */
+  .qty-row { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 560; color: var(--text-muted); letter-spacing: 0.01em; }
+  .qty-input {
+    display: flex; align-items: stretch; border: 1px solid var(--input-border);
+    border-radius: 11px; background: var(--input-bg); overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .qty-input:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .qty-input button { width: 46px; border: none; background: transparent; color: var(--text-muted); font-size: 22px; cursor: pointer; line-height: 1; }
+  .qty-input button:hover { color: var(--accent); }
+  .qty-input input {
+    width: 96px; border: none; background: transparent; color: var(--text);
+    font: inherit; font-size: 26px; font-weight: 640; text-align: center;
+    padding: 8px 0; -moz-appearance: textfield;
+  }
+  .qty-input input::-webkit-outer-spin-button, .qty-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .qty-input input:focus { outline: none; box-shadow: none; }
+
+  input[type="text"], input[type="number"] {
+    font: inherit; color: var(--text); background: var(--input-bg);
+    border: 1px solid var(--input-border); border-radius: 10px;
+    padding: 9px 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+
+  /* ---------- BOM table ---------- */
+  .table-wrap { overflow-x: auto; margin: 0 -22px -6px; padding: 0 22px; }
+  table.bom { width: 100%; border-collapse: collapse; min-width: 720px; }
+  table.bom th {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-faint); text-align: left; padding: 0 12px 10px; white-space: nowrap;
+    border-bottom: 1px solid var(--divider);
+  }
+  table.bom th.r, table.bom td.r { text-align: right; }
+  table.bom th.c, table.bom td.c { text-align: center; }
+  table.bom td { padding: 13px 12px; border-bottom: 1px solid var(--divider); vertical-align: middle; }
+  table.bom tr:last-child td { border-bottom: none; }
+  table.bom tr.excluded td { opacity: 0.42; }
+  table.bom tr.excluded td.keep-op { opacity: 1; }
+
+  .plate-name { font-weight: 560; font-size: 14px; }
+  .plate-name .file { display: block; font-size: 11.5px; color: var(--text-faint); font-weight: 440; margin-top: 1px; }
+
+  .chips { display: flex; gap: 5px; align-items: center; }
+  .chip { width: 16px; height: 16px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.3); }
+  [data-theme="light"] .chip { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.12); }
+
+  .cell-num { font-size: 14px; }
+  .cell-sub { font-size: 11.5px; color: var(--text-faint); }
+  .per-unit-input { width: 66px; text-align: center; font-size: 14px; padding: 7px 6px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+  .plates-needed { font-size: 15px; font-weight: 660; color: var(--accent); }
+  [data-theme="light"] .plates-needed { color: var(--accent-strong); }
+  tr.excluded .plates-needed { color: var(--text-faint); }
+
+  .cbx { position: relative; display: inline-flex; cursor: pointer; }
+  .cbx input { position: absolute; opacity: 0; width: 20px; height: 20px; cursor: pointer; margin: 0; }
+  .cbx .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--input-border); background: var(--input-bg); display: flex; align-items: center; justify-content: center; transition: background 0.12s ease, border-color 0.12s ease; }
+  .cbx .box svg { width: 12px; height: 12px; stroke: var(--accent-text); stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+  .cbx input:checked + .box { background: var(--accent); border-color: var(--accent); }
+  .cbx input:checked + .box svg { opacity: 1; }
+  .cbx input:focus-visible + .box { box-shadow: var(--focus-ring); }
+
+  .row-del { color: var(--text-faint); background: none; border: none; cursor: pointer; padding: 5px; border-radius: 7px; display: inline-flex; }
+  .row-del:hover { color: var(--danger); background: var(--danger-bg); }
+  .row-del svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .empty { text-align: center; padding: 46px 20px; color: var(--text-faint); font-size: 14px; }
+
+  /* ---------- totals ---------- */
+  .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; }
+  @media (max-width: 720px) { .totals { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--bg-alt); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; }
+  .stat .k { font-size: 11.5px; color: var(--text-faint); font-weight: 540; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .v { font-size: 22px; font-weight: 680; margin-top: 3px; letter-spacing: -0.01em; }
+  .stat .v small { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+  .stat.accent { background: var(--accent-soft); border-color: var(--accent-soft-border); }
+  .stat.accent .v { color: var(--accent); }
+  [data-theme="light"] .stat.accent .v { color: var(--accent-strong); }
+
+  /* ---------- quotes ---------- */
+  .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .quote-toolbar .grow { flex: 1 1 200px; }
+  .quote-name-input { width: 100%; font-size: 14.5px; font-weight: 540; }
+  .saved-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .saved-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bg-alt); border: 1px solid var(--card-border); border-radius: 11px; cursor: pointer; transition: border-color 0.12s ease; }
+  .saved-item:hover { border-color: var(--accent-soft-border); }
+  .saved-item.active { border-color: var(--accent); background: var(--accent-soft); }
+  .saved-item .si-main { flex: 1; min-width: 0; }
+  .saved-item .si-name { font-size: 14px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item .si-meta { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
+  .saved-empty { font-size: 13px; color: var(--text-faint); padding: 6px 2px; }
+
+  .status { font-size: 12.5px; color: var(--text-faint); min-height: 16px; }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--danger); }
+
+  footer { text-align: center; font-size: 12px; color: var(--text-faint); margin-top: 26px; }
+
+  /* modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(6,8,9,0.62); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
+  .modal-backdrop.show { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 520px; padding: 22px; }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; font-weight: 640; }
+  .modal .m-sub { font-size: 12.5px; color: var(--text-faint); margin: 0 0 14px; }
+  .modal textarea { width: 100%; min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 12px; }
+  .modal textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<!-- floating theme toggle: available on both the gate and the app -->
+<button class="icon-btn gate-theme" id="themeToggle" title="Toggle theme" aria-label="Toggle light/dark theme">
+  <svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+  <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+</button>
+
+<!-- ============ sign-in gate ============ -->
+<div class="auth-gate" id="authGate">
+  <div class="gate-card">
+    <svg class="gate-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M8 22V10m0 12h16M8 10h9m-9 6h13" fill="none" stroke="var(--accent-text)" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <h1>QuoteBench</h1>
+    <p class="gate-tag">Batch print quoting</p>
+    <p class="auth-copy">Sign in to save, recall, modify, and send quotes &mdash; synced to your account across every device.</p>
+    <button type="button" class="btn primary gate-btn" id="googleSignInBtn">
+      <svg class="g-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M22.5 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.9a5.05 5.05 0 0 1-2.19 3.31v2.76h3.54c2.08-1.92 3.25-4.74 3.25-8.08z" opacity=".9"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.67l-3.54-2.76c-.98.66-2.23 1.06-3.74 1.06-2.87 0-5.3-1.94-6.17-4.55H2.18v2.85A11 11 0 0 0 12 23z" opacity=".65"/><path fill="currentColor" d="M5.83 14.08a6.6 6.6 0 0 1 0-4.16V7.07H2.18a11 11 0 0 0 0 9.86l3.65-2.85z" opacity=".5"/><path fill="currentColor" d="M12 4.75c1.62 0 3.06.56 4.2 1.64l3.14-3.14C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.07l3.65 2.85C6.7 6.69 9.13 4.75 12 4.75z" opacity=".8"/></svg>
+      Sign in with Google
+    </button>
+    <p class="auth-status" id="authStatus"></p>
+  </div>
+</div>
+
+<!-- ============ app ============ -->
+<div class="app" id="appRoot" hidden>
+  <header>
+    <div class="brand">
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M8 22V10m0 12h16M8 10h9m-9 6h13" fill="none" stroke="var(--accent-text)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <h1>QuoteBench</h1>
+      <span class="tag">Batch print quoting</span>
+    </div>
+    <div class="header-actions">
+      <div class="account" id="accountBox">
+        <div class="who"><span class="nm" id="acctName">—</span><span class="em" id="acctEmail"></span></div>
+        <img id="acctAvatar" alt="" src="">
+        <button class="icon-btn" id="signOutBtn" title="Sign out" style="width:34px;height:34px;">
+          <svg viewBox="0 0 24 24" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- import / sample -->
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <svg class="dz-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      <div class="dz-title">Drop sliced <strong>.3mf</strong> files here</div>
+      <div class="dz-sub">Bambu Studio / OrcaSlicer project files &mdash; plate name, print time, filament use and colors are read automatically</div>
+      <div class="dz-actions">
+        <button class="btn primary" id="loadSampleBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
+          Load sample plates
+        </button>
+        <button class="btn ghost" id="clearBtn">Clear plates</button>
+      </div>
+      <div class="dz-note" id="dzNote"></div>
+    </div>
+  </div>
+
+  <!-- quantity -->
+  <div class="card">
+    <div class="qty-row">
+      <div class="field">
+        <label for="qtyInput">Quantity (units)</label>
+        <div class="qty-input">
+          <button type="button" id="qtyMinus" aria-label="Decrease">&minus;</button>
+          <input type="number" id="qtyInput" class="num" min="1" step="1" value="25">
+          <button type="button" id="qtyPlus" aria-label="Increase">+</button>
+        </div>
+      </div>
+      <div class="field" style="flex:1;min-width:200px;">
+        <label>&nbsp;</label>
+        <div class="sub" style="font-size:13px;color:var(--text-muted);line-height:1.45;">
+          Set how many finished units you're producing. Each plate below shows how many prints
+          you'll run to hit that number, based on its yield and how many go into one unit.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOM -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Bill of materials</h2>
+        <p class="sub" id="bomSub">No plates loaded</p>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="bom">
+        <thead>
+          <tr>
+            <th class="c" style="width:34px;">Use</th>
+            <th>Plate / part</th>
+            <th class="r">Yield<br><span style="font-weight:440;text-transform:none;letter-spacing:0;color:var(--text-faint);">parts / plate</span></th>
+            <th class="r">Print time</th>
+            <th class="r">Filament</th>
+            <th class="c">Colors</th>
+            <th class="c">Per unit</th>
+            <th class="r">Plates needed</th>
+            <th class="c" style="width:34px;"></th>
+          </tr>
+        </thead>
+        <tbody id="bomBody"></tbody>
+      </table>
+    </div>
+    <div id="bomEmpty" class="empty">
+      No plates yet. Drop <strong>.3mf</strong> files above, or click <strong>Load sample plates</strong> to try it out.
+    </div>
+
+    <div class="totals" id="totals" hidden>
+      <div class="stat accent"><div class="k">Total plates to print</div><div class="v num" id="tPlates">0</div></div>
+      <div class="stat"><div class="k">Total print time</div><div class="v num" id="tTime">0h</div></div>
+      <div class="stat"><div class="k">Total filament</div><div class="v num" id="tFilament">0 <small>g</small></div></div>
+      <div class="stat"><div class="k">Parts produced</div><div class="v num" id="tParts">0</div></div>
+    </div>
+  </div>
+
+  <!-- quote -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Quote</h2>
+        <p class="sub">Name it, save it, recall it later, or send it out.</p>
+      </div>
+      <span class="status" id="quoteStatus"></span>
+    </div>
+    <div class="quote-toolbar">
+      <div class="grow">
+        <input type="text" id="quoteName" class="quote-name-input" placeholder="Quote name (e.g. Acme &mdash; 25 enclosures)">
+      </div>
+      <button class="btn primary" id="saveQuoteBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
+        Save quote
+      </button>
+      <button class="btn" id="newQuoteBtn">New</button>
+      <button class="btn" id="sendQuoteBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Send
+      </button>
+    </div>
+    <div class="saved-list" id="savedList" style="margin-top:16px;"></div>
+  </div>
+
+  <footer id="footerNote">Your quotes are saved to your account and synced across devices. Also cached in this browser so it works offline.</footer>
+</div>
+
+<!-- send modal -->
+<div class="modal-backdrop" id="sendModal">
+  <div class="modal">
+    <h3>Send quote</h3>
+    <p class="m-sub">A plain-text summary of this quote. Copy it, or open it in your email client.</p>
+    <textarea id="sendText" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn ghost" id="sendClose">Close</button>
+      <button class="btn" id="sendCopy">Copy to clipboard</button>
+      <button class="btn primary" id="sendEmail">Open in email</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ core app ============ -->
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "quotebench.state.v1";
+  var QUOTES_KEY = "quotebench.quotes.v1";
+  var THEME_KEY = "quotebench.theme";
+
+  function sampleParts() {
+    return [
+      { id: uid(), name: "Enclosure body", file: "body_shell.3mf", yield: 4, minutes: 550, grams: 212,
+        colors: [{ hex: "#334155", name: "Slate" }], perUnit: 1, included: true },
+      { id: uid(), name: "Snap clips (x6)", file: "clip_array.3mf", yield: 24, minutes: 225, grams: 46,
+        colors: [{ hex: "#2dd4bf", name: "Teal" }], perUnit: 6, included: true },
+      { id: uid(), name: "Base plate", file: "base_plate.3mf", yield: 8, minutes: 330, grams: 132,
+        colors: [{ hex: "#334155", name: "Slate" }, { hex: "#f97316", name: "Orange" }], perUnit: 1, included: true }
+    ];
+  }
+
+  var state = { quantity: 25, parts: [] };
+  var quotes = [];
+  var activeQuoteId = null;
+
+  function uid() { return "p" + Math.random().toString(36).slice(2, 9) + (Date.now() % 100000).toString(36); }
+
+  var els = {
+    dropzone: document.getElementById("dropzone"),
+    dzNote: document.getElementById("dzNote"),
+    loadSampleBtn: document.getElementById("loadSampleBtn"),
+    clearBtn: document.getElementById("clearBtn"),
+    qtyInput: document.getElementById("qtyInput"),
+    qtyMinus: document.getElementById("qtyMinus"),
+    qtyPlus: document.getElementById("qtyPlus"),
+    bomBody: document.getElementById("bomBody"),
+    bomEmpty: document.getElementById("bomEmpty"),
+    bomSub: document.getElementById("bomSub"),
+    totals: document.getElementById("totals"),
+    tPlates: document.getElementById("tPlates"),
+    tTime: document.getElementById("tTime"),
+    tFilament: document.getElementById("tFilament"),
+    tParts: document.getElementById("tParts"),
+    quoteName: document.getElementById("quoteName"),
+    saveQuoteBtn: document.getElementById("saveQuoteBtn"),
+    newQuoteBtn: document.getElementById("newQuoteBtn"),
+    sendQuoteBtn: document.getElementById("sendQuoteBtn"),
+    savedList: document.getElementById("savedList"),
+    quoteStatus: document.getElementById("quoteStatus"),
+    themeToggle: document.getElementById("themeToggle"),
+    sendModal: document.getElementById("sendModal"),
+    sendText: document.getElementById("sendText"),
+    sendClose: document.getElementById("sendClose"),
+    sendCopy: document.getElementById("sendCopy"),
+    sendEmail: document.getElementById("sendEmail")
+  };
+
+  function fmtTime(mins) {
+    mins = Math.round(mins);
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if (h === 0) return m + "m";
+    if (m === 0) return h + "h";
+    return h + "h " + (m < 10 ? "0" + m : m) + "m";
+  }
+  function fmtInt(n) { return Math.round(n).toLocaleString("en-US"); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+  function platesNeeded(part, qty) {
+    var per = Number(part.perUnit) || 0;
+    var y = Number(part.yield) || 0;
+    if (per <= 0 || y <= 0) return 0;
+    return Math.ceil((qty * per) / y);
+  }
+
+  function render() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var parts = state.parts;
+
+    if (!parts.length) {
+      els.bomBody.innerHTML = "";
+      els.bomEmpty.style.display = "";
+      els.totals.hidden = true;
+      els.bomSub.textContent = "No plates loaded";
+      return;
+    }
+    els.bomEmpty.style.display = "none";
+    els.totals.hidden = false;
+
+    var rows = "";
+    var activeCount = 0;
+    parts.forEach(function (p) {
+      var need = platesNeeded(p, qty);
+      var inc = p.included;
+      if (inc) activeCount++;
+      var chips = p.colors.map(function (c) {
+        return '<span class="chip" style="background:' + esc(c.hex) + '" title="' + esc(c.name || c.hex) + '"></span>';
+      }).join("");
+      rows += '<tr class="' + (inc ? "" : "excluded") + '" data-id="' + p.id + '">' +
+        '<td class="c keep-op"><label class="cbx"><input type="checkbox" class="inc-cbx" ' + (inc ? "checked" : "") + '>' +
+          '<span class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span></label></td>' +
+        '<td><div class="plate-name">' + esc(p.name) + '<span class="file">' + esc(p.file || "") + '</span></div></td>' +
+        '<td class="r"><span class="cell-num num">' + fmtInt(p.yield) + '</span></td>' +
+        '<td class="r"><span class="cell-num num">' + fmtTime(p.minutes) + '</span></td>' +
+        '<td class="r"><span class="cell-num num">' + fmtInt(p.grams) + '</span> <span class="cell-sub">g</span></td>' +
+        '<td class="c"><div class="chips" style="justify-content:center;">' + chips + '</div></td>' +
+        '<td class="c keep-op"><input type="number" class="per-unit-input num peru" min="0" step="1" value="' + esc(p.perUnit) + '"></td>' +
+        '<td class="r"><span class="plates-needed num">' + fmtInt(need) + '</span></td>' +
+        '<td class="c keep-op"><button class="row-del" title="Remove plate"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>' +
+      '</tr>';
+    });
+
+    els.bomBody.innerHTML = rows;
+    els.bomSub.textContent = parts.length + " plate" + (parts.length === 1 ? "" : "s") + " loaded · " +
+      activeCount + " included · " + fmtInt(qty) + " units";
+    recomputeTotals();
+
+    els.bomBody.querySelectorAll("tr").forEach(function (tr) {
+      var id = tr.getAttribute("data-id");
+      var part = parts.find(function (x) { return x.id === id; });
+      if (!part) return;
+      tr.querySelector(".inc-cbx").addEventListener("change", function (e) {
+        part.included = e.target.checked; persist(); render();
+      });
+      tr.querySelector(".peru").addEventListener("input", function (e) {
+        part.perUnit = Math.max(0, Math.floor(Number(e.target.value) || 0));
+        persist();
+        tr.querySelector(".plates-needed").textContent =
+          fmtInt(platesNeeded(part, Math.max(1, Math.floor(Number(state.quantity) || 1))));
+        recomputeTotals();
+      });
+      tr.querySelector(".row-del").addEventListener("click", function () {
+        state.parts = state.parts.filter(function (x) { return x.id !== id; });
+        persist(); render();
+      });
+    });
+  }
+
+  function recomputeTotals() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var totPlates = 0, totMinutes = 0, totGrams = 0, totParts = 0;
+    state.parts.forEach(function (p) {
+      if (!p.included) return;
+      var need = platesNeeded(p, qty);
+      totPlates += need;
+      totMinutes += need * (Number(p.minutes) || 0);
+      totGrams += need * (Number(p.grams) || 0);
+      totParts += need * (Number(p.yield) || 0);
+    });
+    els.tPlates.textContent = fmtInt(totPlates);
+    els.tTime.textContent = fmtTime(totMinutes);
+    els.tFilament.innerHTML = fmtInt(totGrams) + " <small>g · " + (totGrams / 1000).toFixed(2) + " kg</small>";
+    els.tParts.textContent = fmtInt(totParts);
+  }
+
+  function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+  function loadState() {
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.parts)) state = s; } } catch (e) {}
+    els.qtyInput.value = state.quantity;
+  }
+  function persistQuotes() {
+    try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {}
+    if (window.__qbCloudPush) window.__qbCloudPush(quotes);
+  }
+  function loadQuotes() {
+    try { var raw = localStorage.getItem(QUOTES_KEY); if (raw) { var q = JSON.parse(raw); if (Array.isArray(q)) quotes = q; } } catch (e) {}
+  }
+
+  function setStatus(msg, kind) {
+    els.quoteStatus.textContent = msg || "";
+    els.quoteStatus.className = "status" + (kind ? " " + kind : "");
+    if (msg) setTimeout(function () {
+      if (els.quoteStatus.textContent === msg) { els.quoteStatus.textContent = ""; els.quoteStatus.className = "status"; }
+    }, 2600);
+  }
+
+  function isoNow() { return new Date().toISOString(); }
+  function fmtDate(iso) {
+    try { var d = new Date(iso); return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
+      d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
+  }
+
+  function saveQuote() {
+    var name = els.quoteName.value.trim();
+    if (!name) { name = "Untitled quote"; els.quoteName.value = name; }
+    var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)) };
+    var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
+    if (existing) {
+      existing.name = name; existing.updated = isoNow(); existing.state = snapshot;
+      setStatus("Quote updated.", "ok");
+    } else {
+      var q = { id: "q" + uid(), name: name, created: isoNow(), updated: isoNow(), state: snapshot };
+      quotes.unshift(q); activeQuoteId = q.id;
+      setStatus("Quote saved.", "ok");
+    }
+    persistQuotes(); renderSaved();
+  }
+
+  function recallQuote(id) {
+    var q = quotes.find(function (x) { return x.id === id; });
+    if (!q) return;
+    state = { quantity: q.state.quantity, parts: JSON.parse(JSON.stringify(q.state.parts)) };
+    activeQuoteId = id;
+    els.qtyInput.value = state.quantity;
+    els.quoteName.value = q.name;
+    persist(); render(); renderSaved();
+    setStatus("Loaded “" + q.name + "”.", "ok");
+  }
+
+  function deleteQuote(id) {
+    quotes = quotes.filter(function (x) { return x.id !== id; });
+    if (activeQuoteId === id) activeQuoteId = null;
+    persistQuotes(); renderSaved();
+    setStatus("Quote deleted.");
+  }
+
+  function newQuote() {
+    activeQuoteId = null;
+    els.quoteName.value = "";
+    renderSaved();
+    setStatus("Started a new quote. Existing plates kept — rename and save.");
+  }
+
+  function renderSaved() {
+    if (!quotes.length) {
+      els.savedList.innerHTML = '<div class="saved-empty">No saved quotes yet. Name a quote above and click Save.</div>';
+      return;
+    }
+    var qty = function (q) { return q.state ? q.state.quantity : 0; };
+    var included = function (q) { return q.state && q.state.parts ? q.state.parts.filter(function (p) { return p.included; }).length : 0; };
+    els.savedList.innerHTML = quotes.map(function (q) {
+      return '<div class="saved-item ' + (q.id === activeQuoteId ? "active" : "") + '" data-id="' + q.id + '">' +
+        '<div class="si-main"><div class="si-name">' + esc(q.name) + '</div>' +
+          '<div class="si-meta num">' + fmtInt(qty(q)) + ' units · ' + included(q) + ' plates · ' + fmtDate(q.updated) + '</div></div>' +
+        '<button class="btn small" data-act="load">Open</button>' +
+        '<button class="row-del" data-act="del" title="Delete quote"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>' +
+      '</div>';
+    }).join("");
+    els.savedList.querySelectorAll(".saved-item").forEach(function (item) {
+      var id = item.getAttribute("data-id");
+      item.querySelector('[data-act="load"]').addEventListener("click", function (e) { e.stopPropagation(); recallQuote(id); });
+      item.querySelector('[data-act="del"]').addEventListener("click", function (e) { e.stopPropagation(); deleteQuote(id); });
+      item.addEventListener("click", function () { recallQuote(id); });
+    });
+  }
+
+  function buildSummary() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var name = els.quoteName.value.trim() || "Untitled quote";
+    var lines = [];
+    lines.push("QUOTE: " + name);
+    lines.push("Quantity: " + fmtInt(qty) + " units");
+    lines.push("");
+    lines.push("Bill of materials");
+    lines.push("-----------------");
+    var totPlates = 0, totMinutes = 0, totGrams = 0;
+    state.parts.forEach(function (p) {
+      if (!p.included) return;
+      var need = platesNeeded(p, qty);
+      totPlates += need; totMinutes += need * p.minutes; totGrams += need * p.grams;
+      var cols = p.colors.map(function (c) { return c.name || c.hex; }).join(", ");
+      lines.push("- " + p.name + "  (" + cols + ")");
+      lines.push("    yield " + fmtInt(p.yield) + "/plate · " + p.perUnit + " per unit → " +
+        fmtInt(need) + " plate" + (need === 1 ? "" : "s") + " · " + fmtTime(p.minutes) + " ea · " + fmtInt(p.grams) + " g ea");
+    });
+    lines.push("");
+    lines.push("Totals");
+    lines.push("------");
+    lines.push("Plates to print: " + fmtInt(totPlates));
+    lines.push("Print time:      " + fmtTime(totMinutes));
+    lines.push("Filament:        " + fmtInt(totGrams) + " g (" + (totGrams / 1000).toFixed(2) + " kg)");
+    lines.push("");
+    lines.push("Prepared with QuoteBench");
+    return { name: name, text: lines.join("\n") };
+  }
+
+  function openSend() {
+    if (!state.parts.some(function (p) { return p.included; })) { setStatus("Add or include at least one plate first.", "err"); return; }
+    var s = buildSummary();
+    els.sendText.value = s.text;
+    els.sendModal.classList.add("show");
+    els.sendEmail.onclick = function () {
+      window.location.href = "mailto:?subject=" + encodeURIComponent("Quote: " + s.name) + "&body=" + encodeURIComponent(s.text);
+    };
+  }
+
+  function applyTheme(t) {
+    if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+  }
+  function loadTheme() {
+    var t = "dark";
+    try { t = localStorage.getItem(THEME_KEY) || "dark"; } catch (e) {}
+    applyTheme(t);
+  }
+
+  els.loadSampleBtn.addEventListener("click", function () {
+    state.parts = sampleParts();
+    if (!Number(state.quantity)) state.quantity = 25;
+    els.qtyInput.value = state.quantity;
+    persist(); render();
+    setStatus("Loaded 3 sample plates.", "ok");
+  });
+  els.clearBtn.addEventListener("click", function () { state.parts = []; persist(); render(); });
+  els.qtyInput.addEventListener("input", function () {
+    state.quantity = Math.max(1, Math.floor(Number(els.qtyInput.value) || 1)); persist(); render();
+  });
+  els.qtyMinus.addEventListener("click", function () {
+    state.quantity = Math.max(1, (Math.floor(Number(state.quantity) || 1)) - 1);
+    els.qtyInput.value = state.quantity; persist(); render();
+  });
+  els.qtyPlus.addEventListener("click", function () {
+    state.quantity = (Math.floor(Number(state.quantity) || 1)) + 1;
+    els.qtyInput.value = state.quantity; persist(); render();
+  });
+
+  els.saveQuoteBtn.addEventListener("click", saveQuote);
+  els.newQuoteBtn.addEventListener("click", newQuote);
+  els.sendQuoteBtn.addEventListener("click", openSend);
+  els.sendClose.addEventListener("click", function () { els.sendModal.classList.remove("show"); });
+  els.sendModal.addEventListener("click", function (e) { if (e.target === els.sendModal) els.sendModal.classList.remove("show"); });
+  els.sendCopy.addEventListener("click", function () {
+    els.sendText.select();
+    var done = function () { setStatus("Copied to clipboard.", "ok"); els.sendModal.classList.remove("show"); };
+    if (navigator.clipboard) navigator.clipboard.writeText(els.sendText.value).then(done, function () { document.execCommand("copy"); done(); });
+    else { document.execCommand("copy"); done(); }
+  });
+
+  els.themeToggle.addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(cur === "light" ? "dark" : "light");
+  });
+
+  ["dragenter", "dragover"].forEach(function (ev) {
+    els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.add("drag"); });
+  });
+  ["dragleave", "dragend", "drop"].forEach(function (ev) {
+    els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.remove("drag"); });
+  });
+  els.dropzone.addEventListener("drop", function (e) {
+    var files = e.dataTransfer && e.dataTransfer.files ? Array.prototype.slice.call(e.dataTransfer.files) : [];
+    var names = files.map(function (f) { return f.name; }).filter(function (n) { return /\.3mf$/i.test(n); });
+    els.dzNote.style.display = "block";
+    els.dzNote.textContent = names.length
+      ? "Reading real .3mf files is coming in the next step. For now, use “Load sample plates.” (Saw: " + names.join(", ") + ")"
+      : "Drop sliced .3mf project files here. Real file reading arrives in the next step — try “Load sample plates” for now.";
+  });
+
+  // hooks for the cloud layer
+  window.__qb = {
+    getQuotes: function () { return quotes; },
+    setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); } }
+  };
+
+  loadTheme();
+  loadState();
+  loadQuotes();
+  render();
+  renderSaved();
+})();
+</script>
+
+<!-- ============ Google login + cloud sync (hard gate, same as Price My Print) ============ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+var firebaseConfig = {
+  apiKey: "AIzaSyAfvPj8RidN4fbAp3pUYdN-svYEOMotKt8",
+  authDomain: "price-my-print.firebaseapp.com",
+  projectId: "price-my-print",
+  storageBucket: "price-my-print.firebasestorage.app",
+  messagingSenderId: "457640560661",
+  appId: "1:457640560661:web:43dc63e848b4609eca261c"
+};
+
+var app = initializeApp(firebaseConfig);
+var auth = getAuth(app);
+var db = getFirestore(app);
+
+var authGate = document.getElementById("authGate");
+var appRoot = document.getElementById("appRoot");
+var signInBtn = document.getElementById("googleSignInBtn");
+var signOutBtn = document.getElementById("signOutBtn");
+var authStatus = document.getElementById("authStatus");
+var acctName = document.getElementById("acctName");
+var acctEmail = document.getElementById("acctEmail");
+var acctAvatar = document.getElementById("acctAvatar");
+
+var currentUser = null, unsub = null, pushTimer = null;
+
+function setAuthStatus(msg, isErr) {
+  authStatus.textContent = msg || "";
+  authStatus.classList.toggle("err", !!isErr);
+}
+function showGate(show) {
+  authGate.style.display = show ? "flex" : "none";
+  appRoot.hidden = show;
+}
+
+signInBtn.addEventListener("click", function () {
+  setAuthStatus("");
+  signInBtn.disabled = true;
+  signInWithPopup(auth, new GoogleAuthProvider()).catch(function (err) {
+    if (err && err.code === "auth/popup-closed-by-user") setAuthStatus("");
+    else if (err && err.code === "auth/popup-blocked") setAuthStatus("Your browser blocked the sign-in popup. Allow popups for this site and try again.", true);
+    else if (err && err.code === "auth/unauthorized-domain") setAuthStatus("This web address isn't authorized for sign-in yet. Add it under Authentication → Settings → Authorized domains in the Firebase console.", true);
+    else setAuthStatus("Sign-in failed: " + (err && err.message ? err.message : "unknown error"), true);
+  }).finally(function () { signInBtn.disabled = false; });
+});
+
+signOutBtn.addEventListener("click", function () { if (unsub) { unsub(); unsub = null; } signOut(auth); });
+
+// core app calls this whenever quotes change
+window.__qbCloudPush = function (arr) {
+  if (!currentUser) return;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(function () {
+    setDoc(doc(db, "quotebench", currentUser.uid), { quotes: arr, updatedAt: Date.now() }, { merge: true }).catch(function () {});
+  }, 400);
+};
+
+onAuthStateChanged(auth, function (user) {
+  currentUser = user;
+  if (user) {
+    acctName.textContent = user.displayName || "Signed in";
+    acctEmail.textContent = user.email || "";
+    if (user.photoURL) { acctAvatar.src = user.photoURL; acctAvatar.style.display = ""; } else { acctAvatar.style.display = "none"; }
+    setAuthStatus("");
+    showGate(false);
+    getDoc(doc(db, "quotebench", user.uid)).then(function (snap) {
+      if (snap.exists() && Array.isArray(snap.data().quotes) && snap.data().quotes.length) window.__qb.setQuotes(snap.data().quotes);
+      else window.__qbCloudPush(window.__qb.getQuotes());
+    }).catch(function () {});
+    if (unsub) unsub();
+    unsub = onSnapshot(doc(db, "quotebench", user.uid), function (snap) {
+      if (snap.exists() && Array.isArray(snap.data().quotes)) window.__qb.setQuotes(snap.data().quotes);
+    }, function () {});
+  } else {
+    if (unsub) { unsub(); unsub = null; }
+    showGate(true);
+  }
+});
+</script>
+</body>
+</html>
