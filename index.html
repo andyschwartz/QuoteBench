@@ -274,6 +274,25 @@
   .stat.accent .v { color: var(--accent); }
   [data-theme="light"] .stat.accent .v { color: var(--accent-strong); }
 
+  /* ---------- estimate ---------- */
+  .price-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0 20px; border-bottom: 1px solid var(--divider); margin-bottom: 14px; }
+  .ph-amount { font-size: 46px; font-weight: 720; letter-spacing: -0.025em; line-height: 1; color: var(--accent); }
+  [data-theme="light"] .ph-amount { color: var(--accent-strong); }
+  .ph-label { font-size: 12px; color: var(--text-faint); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.07em; }
+  .ph-job { font-size: 13px; color: var(--text-muted); margin-top: 11px; }
+  .breakdown { display: flex; flex-direction: column; }
+  .bd-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 2px; }
+  .bd-label { font-size: 14px; font-weight: 550; display: flex; flex-direction: column; gap: 2px; }
+  .bd-note { font-size: 11.5px; color: var(--text-faint); font-weight: 440; }
+  .bd-amt { font-size: 14.5px; font-weight: 600; white-space: nowrap; }
+  .bd-sub { display: flex; justify-content: space-between; gap: 12px; padding: 2px 2px 2px 16px; font-size: 12.5px; color: var(--text-muted); }
+  .bd-sub .warn { color: var(--danger); }
+  .bd-total { border-top: 1px solid var(--divider); margin-top: 6px; padding-top: 13px; }
+  .bd-total .bd-label { font-weight: 660; font-size: 15px; }
+  .bd-total .bd-amt { font-size: 16.5px; font-weight: 720; color: var(--accent); }
+  [data-theme="light"] .bd-total .bd-amt { color: var(--accent-strong); }
+  .price-empty { text-align: center; color: var(--text-faint); font-size: 14px; padding: 26px 20px; }
+
   /* ---------- quotes ---------- */
   .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .quote-toolbar .grow { flex: 1 1 200px; }
@@ -449,6 +468,25 @@
     </div>
   </div>
 
+  <!-- estimate -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Estimate</h2>
+        <p class="sub">Live price from your Settings. Money rounded to the cent.</p>
+      </div>
+    </div>
+    <div id="priceBody">
+      <div class="price-hero">
+        <span class="ph-amount num" id="phPerUnit">$0.00</span>
+        <span class="ph-label">per unit</span>
+        <span class="ph-job num" id="phJob"></span>
+      </div>
+      <div class="breakdown" id="breakdown"></div>
+    </div>
+    <div class="price-empty" id="priceEmpty">Load or drop plates to see a price.</div>
+  </div>
+
   <!-- quote -->
   <div class="card">
     <div class="card-head">
@@ -503,6 +541,10 @@
           <label for="setScrap">Failure / scrap buffer</label>
           <div class="input-affix"><input type="number" id="setScrap" class="num" min="0" step="1"><span class="affix">%</span></div>
         </div>
+        <div class="cost-field">
+          <label for="setSetup">One-time setup fee <span style="color:var(--text-faint);font-weight:440;">(optional)</span></label>
+          <div class="input-affix"><span class="affix">$</span><input type="number" id="setSetup" class="num" min="0" step="0.01"><span class="affix">/ job</span></div>
+        </div>
       </div>
     </div>
 
@@ -552,11 +594,14 @@
   function sampleParts() {
     return [
       { id: uid(), name: "Enclosure body", file: "body_shell.3mf", yield: 4, minutes: 550, grams: 212,
-        colors: [{ hex: "#334155", name: "Slate" }], perUnit: 1, included: true },
+        filaments: [{ type: "PLA", hex: "#334155", grams: 212 }],
+        colors: [{ hex: "#334155", name: "PLA" }], perUnit: 1, included: true },
       { id: uid(), name: "Snap clips (x6)", file: "clip_array.3mf", yield: 24, minutes: 225, grams: 46,
-        colors: [{ hex: "#2dd4bf", name: "Teal" }], perUnit: 6, included: true },
+        filaments: [{ type: "TPU", hex: "#2dd4bf", grams: 46 }],
+        colors: [{ hex: "#2dd4bf", name: "TPU" }], perUnit: 6, included: true },
       { id: uid(), name: "Base plate", file: "base_plate.3mf", yield: 8, minutes: 330, grams: 132,
-        colors: [{ hex: "#334155", name: "Slate" }, { hex: "#f97316", name: "Orange" }], perUnit: 1, included: true }
+        filaments: [{ type: "PLA", hex: "#334155", grams: 100 }, { type: "PETG", hex: "#f97316", grams: 32 }],
+        colors: [{ hex: "#334155", name: "PLA" }, { hex: "#f97316", name: "PETG" }], perUnit: 1, included: true }
     ];
   }
 
@@ -583,6 +628,11 @@
     tTime: document.getElementById("tTime"),
     tFilament: document.getElementById("tFilament"),
     tParts: document.getElementById("tParts"),
+    priceBody: document.getElementById("priceBody"),
+    priceEmpty: document.getElementById("priceEmpty"),
+    phPerUnit: document.getElementById("phPerUnit"),
+    phJob: document.getElementById("phJob"),
+    breakdown: document.getElementById("breakdown"),
     quoteName: document.getElementById("quoteName"),
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
@@ -624,6 +674,7 @@
       els.bomEmpty.style.display = "";
       els.totals.hidden = true;
       els.bomSub.textContent = "No plates loaded";
+      renderPricing();
       return;
     }
     els.bomEmpty.style.display = "none";
@@ -670,12 +721,14 @@
         tr.querySelector(".plates-needed").textContent =
           fmtInt(platesNeeded(part, Math.max(1, Math.floor(Number(state.quantity) || 1))));
         recomputeTotals();
+        renderPricing();
       });
       tr.querySelector(".row-del").addEventListener("click", function () {
         state.parts = state.parts.filter(function (x) { return x.id !== id; });
         persist(); render();
       });
     });
+    renderPricing();
   }
 
   function recomputeTotals() {
@@ -693,6 +746,99 @@
     els.tTime.textContent = fmtTime(totMinutes);
     els.tFilament.innerHTML = fmtInt(totGrams) + " <small>g · " + (totGrams / 1000).toFixed(2) + " kg</small>";
     els.tParts.textContent = fmtInt(totParts);
+  }
+
+  // ---------- pricing ----------
+  function money(n) {
+    var v = Math.round((Number(n) || 0) * 100) / 100;
+    if (Object.is(v, -0)) v = 0;
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function lookupCpg(type) {
+    if (!settings || !settings.materials) return 0;
+    var t = String(type || "").trim().toLowerCase();
+    if (!t) return 0;
+    for (var i = 0; i < settings.materials.length; i++) {
+      if (String(settings.materials[i].type || "").trim().toLowerCase() === t) return costPerGram(settings.materials[i]);
+    }
+    return 0;
+  }
+  function partFilaments(p) {  // fall back for older data without a filaments array
+    if (p.filaments && p.filaments.length) return p.filaments;
+    var type = (p.colors && p.colors[0] && p.colors[0].name) || "";
+    return [{ type: type, grams: num(p.grams, 0) }];
+  }
+  function computePricing() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var c = (settings && settings.costs) || DEFAULT_SETTINGS.costs;
+    var scrap = 1 + num(c.scrapBuffer, 0) / 100;
+    var markup = 1 + num(c.filamentMarkup, 0) / 100;
+
+    var gramsByType = {}, order = [], totalPlates = 0, totalMinutes = 0;
+    state.parts.forEach(function (p) {
+      if (!p.included) return;
+      var need = platesNeeded(p, qty);
+      if (need <= 0) return;
+      totalPlates += need;
+      totalMinutes += need * num(p.minutes, 0);
+      partFilaments(p).forEach(function (f) {
+        var type = String(f.type || "").trim() || "Unspecified";
+        if (!(type in gramsByType)) { gramsByType[type] = 0; order.push(type); }
+        gramsByType[type] += need * num(f.grams, 0);
+      });
+    });
+
+    var materialLines = [], materialCostRaw = 0;
+    order.forEach(function (type) {
+      var grams = gramsByType[type], cpg = lookupCpg(type), raw = grams * cpg;
+      materialCostRaw += raw;
+      materialLines.push({ type: type, grams: grams, cpg: cpg, cost: raw * scrap * markup, priced: cpg > 0 });
+    });
+
+    var filamentCost = materialCostRaw * scrap * markup;      // scrap, then markup on material
+    var hours = totalMinutes / 60;
+    var machineCost = hours * num(c.machineRate, 0) * scrap;   // time is wasted on a failed plate too
+    var plateFees = totalPlates * num(c.plateFee, 0);
+    var setupFee = num(c.setupFee, 0);
+    var productionSubtotal = filamentCost + machineCost + plateFees;
+    var jobTotal = productionSubtotal + setupFee;
+
+    return {
+      qty: qty, totalMinutes: totalMinutes, totalPlates: totalPlates, materialLines: materialLines,
+      filamentCost: filamentCost, machineCost: machineCost, plateFees: plateFees, setupFee: setupFee,
+      productionSubtotal: productionSubtotal, jobTotal: jobTotal,
+      perUnit: jobTotal / qty, perUnitProduction: productionSubtotal / qty,
+      machineRate: num(c.machineRate, 0), plateFee: num(c.plateFee, 0),
+      scrapPct: num(c.scrapBuffer, 0), markupPct: num(c.filamentMarkup, 0)
+    };
+  }
+
+  function renderPricing() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var active = state.parts.some(function (p) { return p.included && platesNeeded(p, qty) > 0; });
+    if (!active) { els.priceBody.style.display = "none"; els.priceEmpty.style.display = ""; return; }
+    els.priceBody.style.display = ""; els.priceEmpty.style.display = "none";
+
+    var r = computePricing();
+    els.phPerUnit.textContent = money(r.perUnit);
+    els.phJob.textContent = fmtInt(r.qty) + (r.qty === 1 ? " unit · " : " units · ") + money(r.jobTotal) + " total";
+
+    var mats = r.materialLines.map(function (ml) {
+      return '<div class="bd-sub"><span>' + esc(ml.type) + ' · ' + (ml.grams / 1000).toFixed(2) + ' kg' +
+        (ml.priced ? '' : ' <span class="warn">— not in Settings</span>') + '</span><span class="num">' + money(ml.cost) + '</span></div>';
+    }).join("");
+
+    function row(label, note, amt) {
+      return '<div class="bd-row"><div class="bd-label">' + esc(label) +
+        (note ? '<span class="bd-note">' + esc(note) + '</span>' : '') + '</div><div class="bd-amt num">' + amt + '</div></div>';
+    }
+    var html = "";
+    html += row("Filament", "incl. " + r.scrapPct + "% scrap + " + r.markupPct + "% markup", money(r.filamentCost)) + mats;
+    html += row("Machine time", fmtTime(r.totalMinutes) + " at " + money(r.machineRate) + "/hr, incl. " + r.scrapPct + "% scrap", money(r.machineCost));
+    html += row("Plate fees", fmtInt(r.totalPlates) + (r.totalPlates === 1 ? " plate × " : " plates × ") + money(r.plateFee), money(r.plateFees));
+    if (r.setupFee > 0) html += row("Setup fee", "one-time, folded into the job", money(r.setupFee));
+    html += '<div class="bd-row bd-total"><div class="bd-label">Job total</div><div class="bd-amt num">' + money(r.jobTotal) + '</div></div>';
+    els.breakdown.innerHTML = html;
   }
 
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -811,6 +957,16 @@
     lines.push("Plates to print: " + fmtInt(totPlates));
     lines.push("Print time:      " + fmtTime(totMinutes));
     lines.push("Filament:        " + fmtInt(totGrams) + " g (" + (totGrams / 1000).toFixed(2) + " kg)");
+    lines.push("");
+    var pr = computePricing();
+    lines.push("Price");
+    lines.push("-----");
+    lines.push("Filament:     " + money(pr.filamentCost));
+    lines.push("Machine time: " + money(pr.machineCost));
+    lines.push("Plate fees:   " + money(pr.plateFees));
+    if (pr.setupFee > 0) lines.push("Setup fee:    " + money(pr.setupFee));
+    lines.push("Job total:    " + money(pr.jobTotal));
+    lines.push("Per unit:     " + money(pr.perUnit) + "  (" + fmtInt(pr.qty) + " unit" + (pr.qty === 1 ? "" : "s") + ")");
     lines.push("");
     lines.push("Prepared with QuoteBench");
     return { name: name, text: lines.join("\n") };
@@ -960,17 +1116,27 @@
       });
       var used = fils.filter(function (f) { return f.usedG > 0; });
       if (!used.length) used = fils;
-      var seen = {}, colors = [];
-      used.forEach(function (f) {
-        var key = f.color + "|" + f.type;
-        if (seen[key]) return; seen[key] = 1;
-        colors.push({ hex: /^#([0-9a-f]{6})$/i.test(f.color) ? f.color : "#8a9296", name: f.type || "Filament" });
-      });
-      if (!colors.length) colors.push({ hex: "#8a9296", name: "Filament" });
 
       var grams = parseFloat(m.weight);
       if (!(grams > 0)) grams = used.reduce(function (a, f) { return a + f.usedG; }, 0);
       var minutes = Math.round((parseFloat(m.prediction) || 0) / 60);
+
+      // per-filament breakdown (for per-material pricing); colors = deduped chips
+      var filaments = used.map(function (f) {
+        return { type: f.type || "", hex: /^#([0-9a-f]{6})$/i.test(f.color) ? f.color : "#8a9296", grams: f.usedG };
+      });
+      var filSum = filaments.reduce(function (a, f) { return a + f.grams; }, 0);
+      if (filSum <= 0) {  // only plate weight was available — attribute it to the primary filament
+        if (!filaments.length) filaments = [{ type: "", hex: "#8a9296", grams: grams }];
+        else filaments[0].grams = grams;
+      }
+      var seen = {}, colors = [];
+      filaments.forEach(function (f) {
+        var key = f.hex + "|" + f.type;
+        if (seen[key]) return; seen[key] = 1;
+        colors.push({ hex: f.hex, name: f.type || "Filament" });
+      });
+      if (!colors.length) colors.push({ hex: "#8a9296", name: "Filament" });
 
       var pname = (plateNames && plateNames[index]) || "";
       if (!pname) {
@@ -981,7 +1147,7 @@
 
       out.push({ id: uid(), name: pname, file: fileName + " · Plate " + index,
         yield: yieldCount, minutes: minutes, grams: Math.round(grams * 10) / 10,
-        colors: colors, perUnit: 1, included: true });
+        filaments: filaments, colors: colors, perUnit: 1, included: true });
     });
     return out;
   }
@@ -1087,7 +1253,7 @@
   // ---------- shop settings (stored in browser) ----------
   var SETTINGS_KEY = "quotebench.settings.v1";
   var DEFAULT_SETTINGS = {
-    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5 },
+    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5, setupFee: 0 },
     materials: [
       { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
       { type: "PETG", rollPrice: 22.99, rollGrams: 1000 },
@@ -1107,7 +1273,8 @@
         machineRate: num(c.machineRate, DEFAULT_SETTINGS.costs.machineRate),
         plateFee: num(c.plateFee, DEFAULT_SETTINGS.costs.plateFee),
         filamentMarkup: num(c.filamentMarkup, DEFAULT_SETTINGS.costs.filamentMarkup),
-        scrapBuffer: num(c.scrapBuffer, DEFAULT_SETTINGS.costs.scrapBuffer)
+        scrapBuffer: num(c.scrapBuffer, DEFAULT_SETTINGS.costs.scrapBuffer),
+        setupFee: num(c.setupFee, DEFAULT_SETTINGS.costs.setupFee)
       },
       materials: Array.isArray(s.materials) && s.materials.length
         ? s.materials.map(function (m) { return { type: String(m.type == null ? "" : m.type), rollPrice: num(m.rollPrice, 0), rollGrams: num(m.rollGrams, 1000) }; })
@@ -1132,7 +1299,8 @@
     machineRate: document.getElementById("setMachineRate"),
     plateFee: document.getElementById("setPlateFee"),
     markup: document.getElementById("setMarkup"),
-    scrap: document.getElementById("setScrap")
+    scrap: document.getElementById("setScrap"),
+    setup: document.getElementById("setSetup")
   };
 
   function renderSettings() {
@@ -1140,6 +1308,7 @@
     setEls.plateFee.value = settings.costs.plateFee;
     setEls.markup.value = settings.costs.filamentMarkup;
     setEls.scrap.value = settings.costs.scrapBuffer;
+    setEls.setup.value = settings.costs.setupFee;
     renderMaterials();
   }
 
@@ -1164,21 +1333,23 @@
         settings.materials[i].rollPrice = num(priceEl.value, 0);
         settings.materials[i].rollGrams = num(gramsEl.value, 0);
         cpgEl.textContent = "$" + costPerGram(settings.materials[i]).toFixed(3);
-        saveSettings();
+        applySettingsChange();
       }
       typeEl.addEventListener("input", upd);
       priceEl.addEventListener("input", upd);
       gramsEl.addEventListener("input", upd);
       row.querySelector(".mat-del").addEventListener("click", function () {
-        settings.materials.splice(i, 1); saveSettings(); renderMaterials();
+        settings.materials.splice(i, 1); applySettingsChange(); renderMaterials();
       });
     });
   }
 
-  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"]]
+  function applySettingsChange() { saveSettings(); renderPricing(); }
+
+  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"]]
     .forEach(function (pair) {
       setEls[pair[0]].addEventListener("input", function () {
-        settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); saveSettings();
+        settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); applySettingsChange();
       });
     });
 
@@ -1187,7 +1358,7 @@
   setEls.modal.addEventListener("click", function (e) { if (e.target === setEls.modal) setEls.modal.classList.remove("show"); });
   setEls.addMat.addEventListener("click", function () {
     settings.materials.push({ type: "", rollPrice: 0, rollGrams: 1000 });
-    saveSettings(); renderMaterials();
+    applySettingsChange(); renderMaterials();
   });
 
   ["dragenter", "dragover"].forEach(function (ev) {
