@@ -1935,9 +1935,21 @@
       try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
       setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); document.title = prevTitle; }, 1000);
     }
-    var img = idoc.querySelector("img");
-    if (img && !img.complete) { img.addEventListener("load", go); img.addEventListener("error", go); setTimeout(go, 700); }
-    else { setTimeout(go, 20); }   // let the tiny doc lay out, then print
+    // Wait until the logo is actually decoded & paint-ready before printing — a data-URL image
+    // often reports "complete" instantly, which would print before it renders.
+    var settle = function () { setTimeout(go, 90); };
+    var img = idoc.querySelector("img.pq-logo");
+    if (!img) {
+      setTimeout(go, 30);
+    } else if (img.decode) {
+      img.decode().then(settle, settle);
+    } else if (img.complete && img.naturalWidth > 0) {
+      settle();
+    } else {
+      img.addEventListener("load", settle);
+      img.addEventListener("error", settle);
+    }
+    setTimeout(go, 2500);   // hard fallback so it can never hang
   }
 
   function applyTheme(t) {
