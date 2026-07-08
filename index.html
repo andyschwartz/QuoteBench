@@ -296,9 +296,32 @@
   /* modal */
   .modal-backdrop { position: fixed; inset: 0; background: rgba(6,8,9,0.62); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; padding: 24px; z-index: 50; }
   .modal-backdrop.show { display: flex; }
-  .modal { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 520px; padding: 22px; }
+  .modal { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; box-shadow: var(--shadow); width: 100%; max-width: 520px; padding: 22px; max-height: 88vh; overflow-y: auto; }
+  .modal.lg { max-width: 640px; }
   .modal h3 { margin: 0 0 4px; font-size: 16px; font-weight: 640; }
   .modal .m-sub { font-size: 12.5px; color: var(--text-faint); margin: 0 0 14px; }
+
+  /* settings */
+  .set-section h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 20px 0 11px; font-weight: 600; }
+  .set-section:first-child h4 { margin-top: 6px; }
+  .cost-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px; }
+  @media (max-width: 520px) { .cost-grid { grid-template-columns: 1fr; } }
+  .cost-field { display: flex; flex-direction: column; gap: 6px; }
+  .cost-field label { font-size: 12px; color: var(--text-muted); font-weight: 540; }
+  .input-affix { display: flex; align-items: stretch; border: 1px solid var(--input-border); border-radius: 10px; background: var(--input-bg); overflow: hidden; transition: border-color .15s ease, box-shadow .15s ease; }
+  .input-affix:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .input-affix .affix { padding: 0 10px; color: var(--text-faint); font-size: 12.5px; background: var(--bg-alt); display: flex; align-items: center; white-space: nowrap; }
+  .input-affix input { border: none !important; background: transparent; box-shadow: none !important; border-radius: 0; width: 100%; min-width: 0; padding: 9px 11px; }
+  .input-affix input:focus { outline: none; }
+  .mat-wrap { overflow-x: auto; }
+  .mat-head, .mat-row { display: grid; grid-template-columns: 1.5fr 1.1fr 1.1fr 0.9fr 30px; gap: 8px; align-items: center; min-width: 460px; }
+  .mat-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 0 2px 8px; }
+  .mat-head .r { text-align: right; }
+  .mat-row { margin-bottom: 8px; }
+  .mat-cpg { font-size: 13.5px; color: var(--accent); font-weight: 640; text-align: right; padding-right: 2px; font-variant-numeric: tabular-nums; }
+  [data-theme="light"] .mat-cpg { color: var(--accent-strong); }
+  .mat-del { justify-self: center; }
+  .mat-add { margin-top: 6px; }
   .modal textarea { width: 100%; min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 12px; }
   .modal textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
@@ -336,6 +359,9 @@
       <span class="tag">Batch print quoting</span>
     </div>
     <div class="header-actions">
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <div class="account" id="accountBox">
         <div class="who"><span class="nm" id="acctName">—</span><span class="em" id="acctEmail"></span></div>
         <img id="acctAvatar" alt="" src="">
@@ -450,6 +476,54 @@
   </div>
 
   <footer id="footerNote">Your quotes are saved to your account and synced across devices. Also cached in this browser so it works offline.</footer>
+</div>
+
+<!-- settings modal -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal lg">
+    <h3>Settings</h3>
+    <p class="m-sub">Your shop's numbers. Saved in this browser and kept between visits.</p>
+
+    <div class="set-section">
+      <h4>Costs</h4>
+      <div class="cost-grid">
+        <div class="cost-field">
+          <label for="setMachineRate">Machine rate</label>
+          <div class="input-affix"><span class="affix">$</span><input type="number" id="setMachineRate" class="num" min="0" step="0.01"><span class="affix">/ hr</span></div>
+        </div>
+        <div class="cost-field">
+          <label for="setPlateFee">Plate-change fee</label>
+          <div class="input-affix"><span class="affix">$</span><input type="number" id="setPlateFee" class="num" min="0" step="0.01"><span class="affix">/ plate</span></div>
+        </div>
+        <div class="cost-field">
+          <label for="setMarkup">Filament markup</label>
+          <div class="input-affix"><input type="number" id="setMarkup" class="num" min="0" step="1"><span class="affix">%</span></div>
+        </div>
+        <div class="cost-field">
+          <label for="setScrap">Failure / scrap buffer</label>
+          <div class="input-affix"><input type="number" id="setScrap" class="num" min="0" step="1"><span class="affix">%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-section">
+      <h4>Materials</h4>
+      <div class="mat-wrap">
+        <div class="mat-head">
+          <div>Filament type</div><div>Roll price</div><div>Roll size</div><div class="r">Cost / g</div><div></div>
+        </div>
+        <div id="matRows"></div>
+      </div>
+      <button class="btn small mat-add" id="addMatBtn">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+        Add material
+      </button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn primary" id="settingsDone">Done</button>
+    </div>
+  </div>
 </div>
 
 <!-- send modal -->
@@ -1010,6 +1084,112 @@
     applyTheme(cur === "light" ? "dark" : "light");
   });
 
+  // ---------- shop settings (stored in browser) ----------
+  var SETTINGS_KEY = "quotebench.settings.v1";
+  var DEFAULT_SETTINGS = {
+    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5 },
+    materials: [
+      { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
+      { type: "PETG", rollPrice: 22.99, rollGrams: 1000 },
+      { type: "ABS", rollPrice: 18.99, rollGrams: 1000 },
+      { type: "TPU", rollPrice: 27.99, rollGrams: 500 }
+    ]
+  };
+  var settings = null;
+
+  function num(v, d) { var n = parseFloat(v); return isFinite(n) ? n : (d || 0); }
+
+  function normalizeSettings(s) {
+    s = s || {};
+    var c = s.costs || {};
+    return {
+      costs: {
+        machineRate: num(c.machineRate, DEFAULT_SETTINGS.costs.machineRate),
+        plateFee: num(c.plateFee, DEFAULT_SETTINGS.costs.plateFee),
+        filamentMarkup: num(c.filamentMarkup, DEFAULT_SETTINGS.costs.filamentMarkup),
+        scrapBuffer: num(c.scrapBuffer, DEFAULT_SETTINGS.costs.scrapBuffer)
+      },
+      materials: Array.isArray(s.materials) && s.materials.length
+        ? s.materials.map(function (m) { return { type: String(m.type == null ? "" : m.type), rollPrice: num(m.rollPrice, 0), rollGrams: num(m.rollGrams, 1000) }; })
+        : DEFAULT_SETTINGS.materials.map(function (m) { return { type: m.type, rollPrice: m.rollPrice, rollGrams: m.rollGrams }; })
+    };
+  }
+
+  function loadSettings() {
+    try { var raw = localStorage.getItem(SETTINGS_KEY); if (raw) settings = normalizeSettings(JSON.parse(raw)); } catch (e) {}
+    if (!settings) settings = normalizeSettings(DEFAULT_SETTINGS);
+  }
+  function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
+
+  function costPerGram(m) { var g = num(m.rollGrams, 0); return g > 0 ? num(m.rollPrice, 0) / g : 0; }
+
+  var setEls = {
+    btn: document.getElementById("settingsBtn"),
+    modal: document.getElementById("settingsModal"),
+    done: document.getElementById("settingsDone"),
+    addMat: document.getElementById("addMatBtn"),
+    matRows: document.getElementById("matRows"),
+    machineRate: document.getElementById("setMachineRate"),
+    plateFee: document.getElementById("setPlateFee"),
+    markup: document.getElementById("setMarkup"),
+    scrap: document.getElementById("setScrap")
+  };
+
+  function renderSettings() {
+    setEls.machineRate.value = settings.costs.machineRate;
+    setEls.plateFee.value = settings.costs.plateFee;
+    setEls.markup.value = settings.costs.filamentMarkup;
+    setEls.scrap.value = settings.costs.scrapBuffer;
+    renderMaterials();
+  }
+
+  function renderMaterials() {
+    setEls.matRows.innerHTML = settings.materials.map(function (m, i) {
+      return '<div class="mat-row" data-i="' + i + '">' +
+        '<input type="text" class="mat-type" value="' + esc(m.type) + '" placeholder="e.g. PLA">' +
+        '<div class="input-affix"><span class="affix">$</span><input type="number" class="mat-price num" min="0" step="0.01" value="' + esc(m.rollPrice) + '"></div>' +
+        '<div class="input-affix"><input type="number" class="mat-grams num" min="1" step="50" value="' + esc(m.rollGrams) + '"><span class="affix">g</span></div>' +
+        '<div class="mat-cpg num">$' + costPerGram(m).toFixed(3) + '</div>' +
+        '<button class="row-del mat-del" title="Remove material"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>' +
+      '</div>';
+    }).join("");
+    setEls.matRows.querySelectorAll(".mat-row").forEach(function (row) {
+      var i = parseInt(row.getAttribute("data-i"), 10);
+      var typeEl = row.querySelector(".mat-type");
+      var priceEl = row.querySelector(".mat-price");
+      var gramsEl = row.querySelector(".mat-grams");
+      var cpgEl = row.querySelector(".mat-cpg");
+      function upd() {
+        settings.materials[i].type = typeEl.value;
+        settings.materials[i].rollPrice = num(priceEl.value, 0);
+        settings.materials[i].rollGrams = num(gramsEl.value, 0);
+        cpgEl.textContent = "$" + costPerGram(settings.materials[i]).toFixed(3);
+        saveSettings();
+      }
+      typeEl.addEventListener("input", upd);
+      priceEl.addEventListener("input", upd);
+      gramsEl.addEventListener("input", upd);
+      row.querySelector(".mat-del").addEventListener("click", function () {
+        settings.materials.splice(i, 1); saveSettings(); renderMaterials();
+      });
+    });
+  }
+
+  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"]]
+    .forEach(function (pair) {
+      setEls[pair[0]].addEventListener("input", function () {
+        settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); saveSettings();
+      });
+    });
+
+  setEls.btn.addEventListener("click", function () { renderSettings(); setEls.modal.classList.add("show"); });
+  setEls.done.addEventListener("click", function () { setEls.modal.classList.remove("show"); });
+  setEls.modal.addEventListener("click", function (e) { if (e.target === setEls.modal) setEls.modal.classList.remove("show"); });
+  setEls.addMat.addEventListener("click", function () {
+    settings.materials.push({ type: "", rollPrice: 0, rollGrams: 1000 });
+    saveSettings(); renderMaterials();
+  });
+
   ["dragenter", "dragover"].forEach(function (ev) {
     els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.add("drag"); });
   });
@@ -1035,6 +1215,7 @@
   };
 
   loadTheme();
+  loadSettings();
   loadState();
   loadQuotes();
   render();
