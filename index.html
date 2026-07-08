@@ -421,6 +421,67 @@
   .modal textarea { width: 100%; min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 12px; }
   .modal textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+  /* company settings + quote fields */
+  .company-logo-row { display: flex; gap: 16px; align-items: center; }
+  .logo-preview { width: 84px; height: 84px; border: 1px solid var(--input-border); border-radius: 12px; background: var(--input-bg); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+  .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .logo-preview span { font-size: 11px; color: var(--text-faint); }
+  .logo-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .logo-hint { font-size: 11.5px; color: var(--text-faint); }
+  .co-address, .quote-notes { width: 100%; resize: vertical; font-family: inherit; font-size: 14px; color: var(--text); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; padding: 9px 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .co-address:focus, .quote-notes:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .quote-notes { margin-bottom: 12px; min-height: 44px; }
+  .quote-fields .field input[type="date"] { width: 100%; }
+
+  /* ---------- customer print sheet ---------- */
+  #printSheet { display: none; }
+  @media screen { #printSheet { display: none !important; } }
+  @media print {
+    html, body { background: #fff !important; margin: 0; padding: 0; }
+    body { display: block !important; }
+    body > *:not(#printSheet) { display: none !important; }
+    #printSheet { display: block !important; }
+  }
+  @page { margin: 16mm; }
+
+  #printSheet {
+    color: #1a1a1a; background: #fff; font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 12px; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  #printSheet .pq { max-width: 720px; margin: 0 auto; }
+  #printSheet .pq-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 2px solid #14b8a6; padding-bottom: 16px; }
+  #printSheet .pq-brand { display: flex; gap: 14px; align-items: center; }
+  #printSheet .pq-logo { max-height: 64px; max-width: 180px; object-fit: contain; }
+  #printSheet .pq-co-name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #111; }
+  #printSheet .pq-contact { text-align: right; font-size: 11px; color: #555; line-height: 1.6; white-space: pre-line; }
+  #printSheet .pq-titlebar { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 22px; }
+  #printSheet .pq-title { font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: #0f766e; text-transform: uppercase; }
+  #printSheet .pq-meta { text-align: right; font-size: 12px; color: #333; }
+  #printSheet .pq-meta .row { display: flex; justify-content: flex-end; gap: 12px; }
+  #printSheet .pq-meta .k { color: #777; }
+  #printSheet .pq-meta .v { min-width: 96px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  #printSheet .pq-parties { margin-top: 22px; display: flex; gap: 40px; }
+  #printSheet .pq-parties .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 3px; }
+  #printSheet .pq-parties .val { font-size: 13px; font-weight: 600; color: #111; }
+  #printSheet table.pq-items { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  #printSheet table.pq-items th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; padding: 0 0 8px; border-bottom: 1px solid #ddd; }
+  #printSheet table.pq-items th.r { text-align: right; }
+  #printSheet table.pq-items td { padding: 9px 0; border-bottom: 1px solid #eee; font-size: 12.5px; }
+  #printSheet table.pq-items td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  #printSheet table.pq-items td .sub { font-size: 10.5px; color: #888; }
+  #printSheet .pq-total-row td { border-top: 2px solid #333; border-bottom: none; padding-top: 12px; font-weight: 700; font-size: 14px; }
+  #printSheet .pq-perunit { display: flex; justify-content: space-between; align-items: baseline; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+  #printSheet .pq-perunit .lbl { font-size: 12px; color: #0f766e; font-weight: 600; }
+  #printSheet .pq-perunit .amt { font-size: 22px; font-weight: 700; color: #0f766e; font-variant-numeric: tabular-nums; }
+  #printSheet .pq-pay { margin-top: 16px; display: flex; gap: 12px; }
+  #printSheet .pq-pay .box { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 11px 14px; }
+  #printSheet .pq-pay .box .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+  #printSheet .pq-pay .box .v { font-size: 16px; font-weight: 700; color: #111; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  #printSheet .pq-note-block { margin-top: 20px; font-size: 12px; color: #333; }
+  #printSheet .pq-note-block .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 4px; }
+  #printSheet .pq-note-block .body { white-space: pre-line; }
+  #printSheet .pq-foot { margin-top: 28px; padding-top: 14px; border-top: 1px solid #eee; font-size: 11px; color: #888; text-align: center; }
 </style>
 </head>
 <body>
@@ -710,12 +771,21 @@
       <input type="text" id="quoteCustomer" placeholder="Customer (e.g. Acme Co.)">
       <input type="text" id="quoteProduct" placeholder="Product / description (e.g. Feeder cup mounts)">
     </div>
+    <div class="quote-fields">
+      <div class="field"><label for="quoteDate">Quote date</label><input type="date" id="quoteDate"></div>
+      <div></div>
+    </div>
+    <textarea id="quoteNotes" class="quote-notes" rows="2" placeholder="Notes for the customer, shown on the printed quote (optional)"></textarea>
     <div class="quote-toolbar">
       <button class="btn primary" id="saveQuoteBtn">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8"/></svg>
         Save quote
       </button>
       <button class="btn" id="newQuoteBtn">New</button>
+      <button class="btn" id="printQuoteBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+        Print / PDF
+      </button>
       <button class="btn" id="sendQuoteBtn">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
         Send
@@ -786,6 +856,30 @@
       </button>
     </div>
 
+    <div class="set-section">
+      <h4>Company (for printed quotes)</h4>
+      <div class="company-logo-row">
+        <div class="logo-preview" id="logoPreview"><span>No logo</span></div>
+        <div class="logo-actions">
+          <label class="btn small" for="logoInput">Upload logo</label>
+          <input type="file" id="logoInput" accept="image/*" hidden>
+          <button class="btn small ghost" id="logoRemove" type="button">Remove</button>
+          <div class="logo-hint">PNG or JPG. Scaled down automatically.</div>
+        </div>
+      </div>
+      <div class="cost-grid" style="margin-top:14px;">
+        <div class="cost-field"><label for="coName">Company name</label><input type="text" id="coName"></div>
+        <div class="cost-field"><label for="coEmail">Email</label><input type="text" id="coEmail"></div>
+        <div class="cost-field"><label for="coPhone">Phone</label><input type="text" id="coPhone"></div>
+        <div class="cost-field"><label for="coWebsite">Website</label><input type="text" id="coWebsite"></div>
+      </div>
+      <div class="cost-field" style="margin-top:12px;"><label for="coAddress">Address</label><textarea id="coAddress" class="co-address" rows="2" placeholder="Street, City, State ZIP"></textarea></div>
+      <div class="cost-field" style="margin-top:12px;max-width:220px;">
+        <label for="coValid">Quote valid</label>
+        <div class="input-affix"><input type="number" id="coValid" class="num" min="0" step="1"><span class="affix">days</span></div>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn primary" id="settingsDone">Done</button>
     </div>
@@ -805,6 +899,9 @@
     </div>
   </div>
 </div>
+
+<!-- customer-facing print sheet (screen-hidden; shown only when printing) -->
+<div id="printSheet" aria-hidden="true"></div>
 
 <!-- ============ core app ============ -->
 <script>
@@ -829,7 +926,7 @@
     ];
   }
 
-  var state = { quantity: 25, parts: [], hardware: [], customer: "", product: "",
+  var state = { quantity: 25, parts: [], hardware: [], customer: "", product: "", quoteDate: "", notes: "",
     assembly: 0, packing: 0, shipping: 0, adjust: 0,
     discountType: "percent", discountValue: 0, depositPct: 0,
     printers: 2, hoursPerDay: 8, workDays: [1, 2, 3, 4, 5] };
@@ -889,10 +986,14 @@
     depositPct: document.getElementById("depositPct"),
     quoteCustomer: document.getElementById("quoteCustomer"),
     quoteProduct: document.getElementById("quoteProduct"),
+    quoteDate: document.getElementById("quoteDate"),
+    quoteNotes: document.getElementById("quoteNotes"),
     quoteBadge: document.getElementById("quoteBadge"),
     savedTitle: document.getElementById("savedTitle"),
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
+    printQuoteBtn: document.getElementById("printQuoteBtn"),
+    printSheet: document.getElementById("printSheet"),
     sendQuoteBtn: document.getElementById("sendQuoteBtn"),
     savedList: document.getElementById("savedList"),
     quoteStatus: document.getElementById("quoteStatus"),
@@ -1402,9 +1503,13 @@
     if (!Array.isArray(state.workDays) || !state.workDays.length) state.workDays = [1, 2, 3, 4, 5];
     state.customer = String(state.customer || "");
     state.product = String(state.product || "");
+    state.quoteDate = state.quoteDate || todayStr();
+    state.notes = String(state.notes || "");
     els.qtyInput.value = state.quantity;
     els.quoteCustomer.value = state.customer;
     els.quoteProduct.value = state.product;
+    els.quoteDate.value = state.quoteDate;
+    els.quoteNotes.value = state.notes;
     renderOrderInputs();
     renderProductionInputs();
     renderHardware();
@@ -1524,6 +1629,23 @@
     try { var d = new Date(iso); return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
       d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
   }
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function todayStr() { var d = new Date(); return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function fmtDateLong(iso) {
+    try {
+      var p = String(iso).split("-"); if (p.length < 3) return String(iso || "");
+      var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    } catch (e) { return String(iso || ""); }
+  }
+  function addDaysStr(iso, days) {
+    try {
+      var p = String(iso).split("-");
+      var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+      d.setDate(d.getDate() + (parseInt(days, 10) || 0));
+      return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    } catch (e) { return iso; }
+  }
 
   function allocateNumber() {
     var max = 1000;
@@ -1537,6 +1659,7 @@
   function currentSnapshot() {
     return {
       quantity: state.quantity, customer: state.customer, product: state.product,
+      quoteDate: state.quoteDate, notes: state.notes,
       parts: JSON.parse(JSON.stringify(state.parts)), hardware: JSON.parse(JSON.stringify(state.hardware)),
       assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust,
       discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct,
@@ -1573,6 +1696,7 @@
   function applyQuoteState(s) {
     state = {
       quantity: s.quantity, customer: String(s.customer || ""), product: String(s.product || ""),
+      quoteDate: s.quoteDate || todayStr(), notes: String(s.notes || ""),
       parts: JSON.parse(JSON.stringify(s.parts || [])),
       hardware: Array.isArray(s.hardware) ? JSON.parse(JSON.stringify(s.hardware)) : [],
       assembly: num(s.assembly, 0), packing: num(s.packing, 0), shipping: num(s.shipping, 0), adjust: num(s.adjust, 0),
@@ -1585,6 +1709,8 @@
     els.qtyInput.value = state.quantity;
     els.quoteCustomer.value = state.customer;
     els.quoteProduct.value = state.product;
+    els.quoteDate.value = state.quoteDate;
+    els.quoteNotes.value = state.notes;
     renderOrderInputs(); renderProductionInputs(); renderHardware();
     persist(); render(); renderSaved(); updateQuoteBadge();
   }
@@ -1614,8 +1740,9 @@
 
   function newQuote() {
     activeQuoteId = null;
-    state.customer = ""; state.product = "";
-    els.quoteCustomer.value = ""; els.quoteProduct.value = "";
+    state.customer = ""; state.product = ""; state.notes = ""; state.quoteDate = todayStr();
+    els.quoteCustomer.value = ""; els.quoteProduct.value = ""; els.quoteNotes.value = "";
+    els.quoteDate.value = state.quoteDate;
     persist(); renderSaved(); updateQuoteBadge();
     setStatus("Started a new quote. Current plates kept — edit and save.");
   }
@@ -1717,6 +1844,94 @@
     els.sendEmail.onclick = function () {
       window.location.href = "mailto:?subject=" + encodeURIComponent("Quote: " + s.name) + "&body=" + encodeURIComponent(s.text);
     };
+  }
+
+  // ---------- customer-facing print / PDF ----------
+  function pRow(label, sub, amt) {
+    return '<tr><td>' + esc(label) + (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') + '</td><td class="r">' + amt + '</td></tr>';
+  }
+  function sanitizeFilename(s) {
+    return String(s || "").replace(/[\\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  function buildPrintSheet() {
+    var pr = computePricing();
+    var qty = pr.qty;
+    var co = settings.company;
+    var activeQ = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
+    var number = activeQ ? activeQ.number : "DRAFT";
+    var qdate = state.quoteDate || todayStr();
+    var validDays = num(co.validDays, 0);
+    var validUntil = validDays > 0 ? addDaysStr(qdate, validDays) : "";
+    var customer = state.customer || "—";
+    var product = state.product || "—";
+
+    var contact = [];
+    if (co.address) contact.push(co.address);
+    if (co.phone) contact.push(co.phone);
+    if (co.email) contact.push(co.email);
+    if (co.website) contact.push(co.website);
+
+    var brand = (co.logo ? '<img class="pq-logo" src="' + esc(co.logo) + '" alt="">' : '') +
+      (co.name ? '<div class="pq-co-name">' + esc(co.name) + '</div>' : (co.logo ? '' : '<div class="pq-co-name">Your Company</div>'));
+
+    var items = pRow("Production", fmtInt(qty) + " units", money(pr.productionSubtotal));
+    if (pr.assembly > 0) items += pRow("Assembly", money(pr.assembly) + "/unit", money(pr.assembly * qty));
+    if (pr.packing > 0) items += pRow("Packing", money(pr.packing) + "/unit", money(pr.packing * qty));
+    if (pr.adjust !== 0) items += pRow("Adjustment", money(pr.adjust) + "/unit", money(pr.adjust * qty));
+    if (pr.setupFee > 0) items += pRow("Setup fee", "one-time", money(pr.setupFee));
+    if (pr.discountAmount > 0) items += pRow("Discount", pr.discType === "percent" ? (Math.round(pr.discInput * 100) / 100) + "% off" : "applied", money(-pr.discountAmount));
+    if (pr.shipping > 0) items += pRow("Shipping", "", money(pr.shipping));
+
+    var pay = "";
+    if (pr.depositPct > 0) {
+      pay = '<div class="pq-pay">' +
+        '<div class="box"><div class="k">Deposit due now (' + (Math.round(pr.depositPct * 100) / 100) + '%)</div><div class="v">' + money(pr.depositDue) + '</div></div>' +
+        '<div class="box"><div class="k">Balance on delivery</div><div class="v">' + money(pr.balance) + '</div></div></div>';
+    }
+
+    var lead = "";
+    if (state.parts.some(function (p) { return p.included && platesNeeded(p, qty) > 0; })) {
+      var prod = computeProduction();
+      if (prod.calendarDays > 0) lead = "Estimated lead time: approximately " + fmtInt(prod.calendarDays) + (prod.calendarDays === 1 ? " day" : " days") + " from order.";
+    }
+
+    var meta = '<div class="row"><span class="k">Quote #</span><span class="v">' + esc(number) + '</span></div>' +
+      '<div class="row"><span class="k">Date</span><span class="v">' + esc(fmtDateLong(qdate)) + '</span></div>' +
+      (validUntil ? '<div class="row"><span class="k">Valid until</span><span class="v">' + esc(fmtDateLong(validUntil)) + '</span></div>' : '');
+
+    var html = '<div class="pq">' +
+      '<div class="pq-top"><div class="pq-brand">' + brand + '</div><div class="pq-contact">' + esc(contact.join("\n")) + '</div></div>' +
+      '<div class="pq-titlebar"><div class="pq-title">Quote</div><div class="pq-meta">' + meta + '</div></div>' +
+      '<div class="pq-parties">' +
+        '<div><div class="lbl">Prepared for</div><div class="val">' + esc(customer) + '</div></div>' +
+        '<div><div class="lbl">Product</div><div class="val">' + esc(product) + '</div></div>' +
+        '<div><div class="lbl">Quantity</div><div class="val">' + fmtInt(qty) + ' units</div></div>' +
+      '</div>' +
+      '<table class="pq-items"><thead><tr><th>Description</th><th class="r">Amount</th></tr></thead><tbody>' +
+        items + '<tr class="pq-total-row"><td>Grand total</td><td class="r">' + money(pr.grandTotal) + '</td></tr>' +
+      '</tbody></table>' +
+      '<div class="pq-perunit"><div class="lbl">Price per unit (all-in)</div><div class="amt">' + money(pr.allInPerUnit) + '</div></div>' +
+      pay +
+      (lead ? '<div class="pq-note-block"><div class="body">' + esc(lead) + '</div></div>' : '') +
+      (state.notes ? '<div class="pq-note-block"><div class="lbl">Notes</div><div class="body">' + esc(state.notes) + '</div></div>' : '') +
+      '<div class="pq-foot">' + (validDays > 0 ? 'This quote is valid for ' + fmtInt(validDays) + ' days from the date above. ' : '') + 'Thank you for your business.</div>' +
+    '</div>';
+    return { html: html, number: number, customer: customer };
+  }
+
+  function printQuote() {
+    if (!state.parts.some(function (p) { return p.included; })) { setStatus("Add or include at least one plate first.", "err"); return; }
+    var built = buildPrintSheet();
+    els.printSheet.innerHTML = built.html;
+    var cust = sanitizeFilename(built.customer);
+    var fname = sanitizeFilename(built.number + (cust && cust !== "—" ? " - " + cust : "")) || "Quote";
+    var prev = document.title;
+    document.title = fname;
+    var restore = function () { document.title = prev; window.removeEventListener("afterprint", restore); };
+    window.addEventListener("afterprint", restore);
+    window.print();
+    setTimeout(restore, 2000);   // fallback if afterprint doesn't fire
   }
 
   function applyTheme(t) {
@@ -2002,8 +2217,11 @@
 
   els.quoteCustomer.addEventListener("input", function () { state.customer = els.quoteCustomer.value; persist(); });
   els.quoteProduct.addEventListener("input", function () { state.product = els.quoteProduct.value; persist(); });
+  els.quoteDate.addEventListener("input", function () { state.quoteDate = els.quoteDate.value || todayStr(); persist(); });
+  els.quoteNotes.addEventListener("input", function () { state.notes = els.quoteNotes.value; persist(); });
   els.saveQuoteBtn.addEventListener("click", saveQuote);
   els.newQuoteBtn.addEventListener("click", newQuote);
+  els.printQuoteBtn.addEventListener("click", printQuote);
   els.sendQuoteBtn.addEventListener("click", openSend);
   els.sendClose.addEventListener("click", function () { els.sendModal.classList.remove("show"); });
   els.sendModal.addEventListener("click", function (e) { if (e.target === els.sendModal) els.sendModal.classList.remove("show"); });
@@ -2022,6 +2240,7 @@
   // ---------- shop settings (stored in browser) ----------
   var SETTINGS_KEY = "quotebench.settings.v1";
   var DEFAULT_SETTINGS = {
+    company: { name: "", logo: "", address: "", email: "", phone: "", website: "", validDays: 14 },
     costs: { machineRate: 3.00, electricity: 0.15, plateFee: 1.00, filamentMarkup: 30, hardwareMarkup: 50, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
     materials: [
       { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
@@ -2037,7 +2256,14 @@
   function normalizeSettings(s) {
     s = s || {};
     var c = s.costs || {};
+    var co = s.company || {};
+    var str = function (v) { return v == null ? "" : String(v); };
     return {
+      company: {
+        name: str(co.name), logo: str(co.logo), address: str(co.address),
+        email: str(co.email), phone: str(co.phone), website: str(co.website),
+        validDays: num(co.validDays, DEFAULT_SETTINGS.company.validDays)
+      },
       costs: {
         machineRate: num(c.machineRate, DEFAULT_SETTINGS.costs.machineRate),
         electricity: num(c.electricity, DEFAULT_SETTINGS.costs.electricity),
@@ -2078,7 +2304,16 @@
     hwMarkup: document.getElementById("setHwMarkup"),
     scrap: document.getElementById("setScrap"),
     setup: document.getElementById("setSetup"),
-    minOrder: document.getElementById("setMinOrder")
+    minOrder: document.getElementById("setMinOrder"),
+    logoPreview: document.getElementById("logoPreview"),
+    logoInput: document.getElementById("logoInput"),
+    logoRemove: document.getElementById("logoRemove"),
+    coName: document.getElementById("coName"),
+    coEmail: document.getElementById("coEmail"),
+    coPhone: document.getElementById("coPhone"),
+    coWebsite: document.getElementById("coWebsite"),
+    coAddress: document.getElementById("coAddress"),
+    coValid: document.getElementById("coValid")
   };
 
   function renderSettings() {
@@ -2090,7 +2325,16 @@
     setEls.scrap.value = settings.costs.scrapBuffer;
     setEls.setup.value = settings.costs.setupFee;
     setEls.minOrder.value = settings.costs.minOrder;
+    var co = settings.company;
+    setEls.coName.value = co.name; setEls.coEmail.value = co.email; setEls.coPhone.value = co.phone;
+    setEls.coWebsite.value = co.website; setEls.coAddress.value = co.address; setEls.coValid.value = co.validDays;
+    renderCompanyLogo();
     renderMaterials();
+  }
+
+  function renderCompanyLogo() {
+    var logo = settings.company.logo;
+    setEls.logoPreview.innerHTML = logo ? '<img src="' + esc(logo) + '" alt="logo">' : '<span>No logo</span>';
   }
 
   function renderMaterials() {
@@ -2133,6 +2377,42 @@
         settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); applySettingsChange();
       });
     });
+
+  [["coName", "name"], ["coEmail", "email"], ["coPhone", "phone"], ["coWebsite", "website"], ["coAddress", "address"]]
+    .forEach(function (pair) {
+      setEls[pair[0]].addEventListener("input", function () { settings.company[pair[1]] = setEls[pair[0]].value; saveSettings(); });
+    });
+  setEls.coValid.addEventListener("input", function () { settings.company.validDays = Math.max(0, Math.floor(num(setEls.coValid.value, 0))); saveSettings(); });
+
+  setEls.logoInput.addEventListener("change", function () {
+    var file = setEls.logoInput.files && setEls.logoInput.files[0];
+    if (file) loadLogoFile(file);
+    setEls.logoInput.value = "";
+  });
+  setEls.logoRemove.addEventListener("click", function () { settings.company.logo = ""; saveSettings(); renderCompanyLogo(); });
+
+  function loadLogoFile(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var max = 360, w = img.width, h = img.height;
+        if (w > max || h > max) { var s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+        try {
+          var canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          settings.company.logo = canvas.toDataURL("image/png");
+        } catch (e) {
+          settings.company.logo = reader.result;   // fall back to the original if canvas is blocked
+        }
+        saveSettings(); renderCompanyLogo();
+      };
+      img.onerror = function () { setStatus("Could not read that image.", "err"); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
   setEls.btn.addEventListener("click", function () { renderSettings(); setEls.modal.classList.add("show"); });
   setEls.done.addEventListener("click", function () { setEls.modal.classList.remove("show"); });
