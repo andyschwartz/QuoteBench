@@ -18,6 +18,7 @@
     --accent: #2dd4bf;
     --accent-strong: #4be3d1;
     --accent-text: #071411;
+    --profit: #34d399;
     --accent-soft: rgba(45,212,191,0.12);
     --accent-soft-border: rgba(45,212,191,0.35);
     --danger: #ec7466;
@@ -44,6 +45,7 @@
     --accent: #0d9488;
     --accent-strong: #0b7d73;
     --accent-text: #ffffff;
+    --profit: #15803d;
     --accent-soft: rgba(13,148,136,0.09);
     --accent-soft-border: rgba(13,148,136,0.3);
     --danger: #c23b2d;
@@ -322,6 +324,13 @@
   [data-theme="light"] .bd-allin .bd-amt { color: var(--accent-strong); }
   .price-empty { text-align: center; color: var(--text-faint); font-size: 14px; padding: 26px 20px; }
 
+  /* ---------- profit (internal) ---------- */
+  .internal-badge { font-size: 10px; font-weight: 640; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); border: 1px solid var(--card-border); border-radius: 999px; padding: 3px 8px; margin-left: 8px; white-space: nowrap; vertical-align: middle; }
+  .pf-amount { color: var(--profit); }
+  .pf-amount.neg { color: var(--danger); }
+  .bd-total .bd-amt.pf-pos { color: var(--profit); }
+  .bd-total .bd-amt.pf-neg { color: var(--danger); }
+
   /* ---------- quotes ---------- */
   .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .quote-toolbar .grow { flex: 1 1 200px; }
@@ -592,6 +601,25 @@
     <div class="price-empty" id="priceEmpty">Load or drop plates to see a price.</div>
   </div>
 
+  <!-- profit (internal) -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Profit <span class="internal-badge">Internal &middot; not on the quote</span></h2>
+        <p class="sub">What you actually keep &mdash; real out-of-pocket costs, not the marked-up numbers.</p>
+      </div>
+    </div>
+    <div id="profitBody">
+      <div class="price-hero">
+        <span class="ph-amount pf-amount num" id="pfAmount">$0.00</span>
+        <span class="ph-label" id="pfMargin">&mdash; margin</span>
+        <span class="ph-job num" id="pfPerUnit"></span>
+      </div>
+      <div class="breakdown" id="pfBreakdown"></div>
+    </div>
+    <div class="price-empty" id="profitEmpty">Load or drop plates to see profit.</div>
+  </div>
+
   <!-- quote -->
   <div class="card">
     <div class="card-head">
@@ -633,6 +661,10 @@
         <div class="cost-field">
           <label for="setMachineRate">Machine rate</label>
           <div class="input-affix"><span class="affix">$</span><input type="number" id="setMachineRate" class="num" min="0" step="0.01"><span class="affix">/ hr</span></div>
+        </div>
+        <div class="cost-field">
+          <label for="setElectricity">Electricity <span style="color:var(--text-faint);font-weight:440;">(real cost)</span></label>
+          <div class="input-affix"><span class="affix">$</span><input type="number" id="setElectricity" class="num" min="0" step="0.01"><span class="affix">/ hr</span></div>
         </div>
         <div class="cost-field">
           <label for="setPlateFee">Plate-change fee</label>
@@ -747,6 +779,12 @@
     phPerUnit: document.getElementById("phPerUnit"),
     phJob: document.getElementById("phJob"),
     breakdown: document.getElementById("breakdown"),
+    profitBody: document.getElementById("profitBody"),
+    profitEmpty: document.getElementById("profitEmpty"),
+    pfAmount: document.getElementById("pfAmount"),
+    pfMargin: document.getElementById("pfMargin"),
+    pfPerUnit: document.getElementById("pfPerUnit"),
+    pfBreakdown: document.getElementById("pfBreakdown"),
     hwRows: document.getElementById("hwRows"),
     hwEmpty: document.getElementById("hwEmpty"),
     addHwBtn: document.getElementById("addHwBtn"),
@@ -880,15 +918,16 @@
     var sign = v < 0 ? "-" : "";
     return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function lookupCpg(type) {
-    if (!settings || !settings.materials) return 0;
+  function lookupMaterial(type) {
+    if (!settings || !settings.materials) return null;
     var t = String(type || "").trim().toLowerCase();
-    if (!t) return 0;
+    if (!t) return null;
     for (var i = 0; i < settings.materials.length; i++) {
-      if (String(settings.materials[i].type || "").trim().toLowerCase() === t) return costPerGram(settings.materials[i]);
+      if (String(settings.materials[i].type || "").trim().toLowerCase() === t) return settings.materials[i];
     }
-    return 0;
+    return null;
   }
+  function lookupCpg(type) { var m = lookupMaterial(type); return m ? costPerGram(m) : 0; }
   function partFilaments(p) {  // fall back for older data without a filaments array
     if (p.filaments && p.filaments.length) return p.filaments;
     var type = (p.colors && p.colors[0] && p.colors[0].name) || "";
@@ -967,6 +1006,37 @@
     var depositDue = grandTotal * depositPct / 100;
     var balance = grandTotal - depositDue;
 
+    // ---- profit (internal): real out-of-pocket costs, not the marked-up numbers ----
+    // filament truly bought = whole spools, rounded up per material AND color
+    var realGroups = {}, realOrder = [];
+    state.parts.forEach(function (p) {
+      if (!p.included) return;
+      var need = platesNeeded(p, qty); if (need <= 0) return;
+      partFilaments(p).forEach(function (f) {
+        var type = String(f.type || "").trim(), hex = f.hex || "";
+        var key = type.toLowerCase() + "|" + hex.toLowerCase();
+        if (!realGroups[key]) { realGroups[key] = { type: type || "Unspecified", hex: hex, grams: 0 }; realOrder.push(key); }
+        realGroups[key].grams += need * num(f.grams, 0);
+      });
+    });
+    var realFilamentLines = [], filamentReal = 0;
+    realOrder.forEach(function (key) {
+      var g = realGroups[key], mat = lookupMaterial(g.type);
+      var rollGrams = mat ? num(mat.rollGrams, 0) : 0, rollPrice = mat ? num(mat.rollPrice, 0) : 0;
+      var spools = (rollGrams > 0 && g.grams > 0) ? Math.ceil(g.grams / rollGrams) : 0;
+      var cost = spools * rollPrice;
+      filamentReal += cost;
+      realFilamentLines.push({ type: g.type, hex: g.hex, grams: g.grams, rollGrams: rollGrams, rollPrice: rollPrice, spools: spools, cost: cost, priced: !!mat });
+    });
+
+    var electricityRate = num(c.electricity, 0);
+    var electricity = electricityRate * hours;
+    var hardwareReal = hwSpend;                          // whole packs, pre-markup
+    var revenue = grandTotal;
+    var profit = revenue - filamentReal - hardwareReal - electricity - shipping;  // shipping/deposit are pass-throughs
+    var margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    var profitPerUnit = profit / qty;
+
     return {
       qty: qty, totalMinutes: totalMinutes, totalPlates: totalPlates, materialLines: materialLines,
       filamentCost: filamentCost, machineCost: machineCost, plateFees: plateFees, setupFee: setupFee,
@@ -978,6 +1048,9 @@
       goods: goods, discType: discType, discInput: discInput, discountAmount: discountAmount, discountedGoods: discountedGoods,
       orderCharges: orderCharges, grandTotal: grandTotal, allInPerUnit: grandTotal / qty,
       depositPct: depositPct, depositDue: depositDue, balance: balance,
+      realFilamentLines: realFilamentLines, filamentReal: filamentReal, hardwareReal: hardwareReal,
+      electricity: electricity, electricityRate: electricityRate,
+      revenue: revenue, profit: profit, margin: margin, profitPerUnit: profitPerUnit,
       machineRate: num(c.machineRate, 0), plateFee: num(c.plateFee, 0),
       scrapPct: num(c.scrapBuffer, 0), markupPct: num(c.filamentMarkup, 0)
     };
@@ -986,7 +1059,11 @@
   function renderPricing() {
     var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
     var active = state.parts.some(function (p) { return p.included && platesNeeded(p, qty) > 0; });
-    if (!active) { els.priceBody.style.display = "none"; els.priceEmpty.style.display = ""; return; }
+    if (!active) {
+      els.priceBody.style.display = "none"; els.priceEmpty.style.display = "";
+      els.profitBody.style.display = "none"; els.profitEmpty.style.display = "";
+      return;
+    }
     els.priceBody.style.display = ""; els.priceEmpty.style.display = "none";
 
     var r = computePricing();
@@ -1050,6 +1127,44 @@
 
     html += row("All-in per unit", fmtInt(r.qty) + (r.qty === 1 ? " unit" : " units"), money(r.allInPerUnit), "bd-allin");
     els.breakdown.innerHTML = html;
+
+    renderProfit(r);
+  }
+
+  function fmtPct(n) { return (Math.round((Number(n) || 0) * 10) / 10).toFixed(1) + "%"; }
+
+  function renderProfit(r) {
+    els.profitBody.style.display = ""; els.profitEmpty.style.display = "none";
+    var neg = r.profit < -0.004;
+    els.pfAmount.textContent = money(r.profit);
+    els.pfAmount.classList.toggle("neg", neg);
+    els.pfMargin.textContent = (r.revenue > 0 ? fmtPct(r.margin) : "—") + " margin";
+    els.pfPerUnit.textContent = money(r.profitPerUnit) + " / unit";
+
+    function row(label, note, amt, cls) {
+      return '<div class="bd-row ' + (cls || "") + '"><div class="bd-label">' + esc(label) +
+        (note ? '<span class="bd-note">' + esc(note) + '</span>' : '') + '</div><div class="bd-amt num">' + amt + '</div></div>';
+    }
+    function group(label) { return '<div class="bd-group">' + esc(label) + '</div>'; }
+
+    var fsub = r.realFilamentLines.map(function (fl) {
+      var chip = fl.hex ? '<span class="chip" style="display:inline-block;vertical-align:-2px;width:11px;height:11px;background:' + esc(fl.hex) + '"></span> ' : '';
+      return '<div class="bd-sub"><span>' + chip + esc(fl.type) + ' · ' + (fl.grams / 1000).toFixed(2) + ' kg → ' +
+        fmtInt(fl.spools) + (fl.spools === 1 ? ' spool' : ' spools') +
+        (fl.priced ? '' : ' <span class="warn">— not in Settings</span>') + '</span><span class="num">' + money(-fl.cost) + '</span></div>';
+    }).join("");
+
+    var html = row("Revenue", "quote total", money(r.revenue), "bd-subtotal");
+    html += group("Real out-of-pocket costs");
+    html += row("Filament — whole spools", "rounded up per material & color", money(-r.filamentReal)) + fsub;
+    if (r.hardwareReal > 0) html += row("Hardware — whole packs", "real spend, no markup", money(-r.hardwareReal));
+    html += row("Electricity", fmtTime(r.totalMinutes) + " at " + money(r.electricityRate) + "/hr", money(-r.electricity));
+    if (r.shipping > 0) html += row("Shipping — pass-through", "charged = paid out", money(-r.shipping));
+    html += '<div class="bd-row bd-total"><div class="bd-label">Profit<span class="bd-note">' +
+      (r.revenue > 0 ? fmtPct(r.margin) + ' margin' : '—') + '</span></div>' +
+      '<div class="bd-amt num ' + (neg ? 'pf-neg' : 'pf-pos') + '">' + money(r.profit) + '</div></div>';
+    html += row("Profit per unit", fmtInt(r.qty) + (r.qty === 1 ? " unit" : " units"), money(r.profitPerUnit), "bd-allin");
+    els.pfBreakdown.innerHTML = html;
   }
 
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -1595,7 +1710,7 @@
   // ---------- shop settings (stored in browser) ----------
   var SETTINGS_KEY = "quotebench.settings.v1";
   var DEFAULT_SETTINGS = {
-    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, hardwareMarkup: 50, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
+    costs: { machineRate: 3.00, electricity: 0.15, plateFee: 1.00, filamentMarkup: 30, hardwareMarkup: 50, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
     materials: [
       { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
       { type: "PETG", rollPrice: 22.99, rollGrams: 1000 },
@@ -1613,6 +1728,7 @@
     return {
       costs: {
         machineRate: num(c.machineRate, DEFAULT_SETTINGS.costs.machineRate),
+        electricity: num(c.electricity, DEFAULT_SETTINGS.costs.electricity),
         plateFee: num(c.plateFee, DEFAULT_SETTINGS.costs.plateFee),
         filamentMarkup: num(c.filamentMarkup, DEFAULT_SETTINGS.costs.filamentMarkup),
         hardwareMarkup: num(c.hardwareMarkup, DEFAULT_SETTINGS.costs.hardwareMarkup),
@@ -1641,6 +1757,7 @@
     addMat: document.getElementById("addMatBtn"),
     matRows: document.getElementById("matRows"),
     machineRate: document.getElementById("setMachineRate"),
+    electricity: document.getElementById("setElectricity"),
     plateFee: document.getElementById("setPlateFee"),
     markup: document.getElementById("setMarkup"),
     hwMarkup: document.getElementById("setHwMarkup"),
@@ -1651,6 +1768,7 @@
 
   function renderSettings() {
     setEls.machineRate.value = settings.costs.machineRate;
+    setEls.electricity.value = settings.costs.electricity;
     setEls.plateFee.value = settings.costs.plateFee;
     setEls.markup.value = settings.costs.filamentMarkup;
     setEls.hwMarkup.value = settings.costs.hardwareMarkup;
@@ -1694,7 +1812,7 @@
 
   function applySettingsChange() { saveSettings(); renderPricing(); }
 
-  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["hwMarkup", "hardwareMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"], ["minOrder", "minOrder"]]
+  [["machineRate", "machineRate"], ["electricity", "electricity"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["hwMarkup", "hardwareMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"], ["minOrder", "minOrder"]]
     .forEach(function (pair) {
       setEls[pair[0]].addEventListener("input", function () {
         settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); applySettingsChange();
