@@ -274,6 +274,20 @@
   .stat.accent .v { color: var(--accent); }
   [data-theme="light"] .stat.accent .v { color: var(--accent-strong); }
 
+  /* ---------- hardware ---------- */
+  .hw-head, .hw-row { display: grid; grid-template-columns: 1.6fr 1fr 0.9fr 0.9fr 1fr 1fr 30px; gap: 8px; align-items: center; min-width: 620px; }
+  .hw-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); padding: 0 2px 8px; }
+  .hw-head .r { text-align: right; }
+  .hw-row { margin-bottom: 8px; }
+  .hw-calc { text-align: right; font-variant-numeric: tabular-nums; }
+  .hw-calc .big { font-size: 13.5px; font-weight: 600; }
+  .hw-calc .sub { font-size: 11px; color: var(--text-faint); }
+  .hw-cost .big { color: var(--accent); }
+  [data-theme="light"] .hw-cost .big { color: var(--accent-strong); }
+  .hw-del { justify-self: center; }
+  .hw-empty { font-size: 13px; color: var(--text-faint); padding: 4px 2px 10px; }
+  .hw-add { margin-top: 6px; }
+
   /* ---------- estimate ---------- */
   .price-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0 20px; border-bottom: 1px solid var(--divider); margin-bottom: 14px; }
   .ph-amount { font-size: 46px; font-weight: 720; letter-spacing: -0.025em; line-height: 1; color: var(--accent); }
@@ -483,6 +497,28 @@
     </div>
   </div>
 
+  <!-- sourced parts / hardware -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Sourced parts &amp; hardware</h2>
+        <p class="sub">Non-printed items each unit needs. Priced by whole packs (you buy the whole pack).</p>
+      </div>
+    </div>
+    <div class="mat-wrap">
+      <div class="hw-head">
+        <div>Item</div><div>Pack price</div><div>Pack qty</div><div>Per unit</div>
+        <div class="r">Needed</div><div class="r">Cost</div><div></div>
+      </div>
+      <div id="hwRows"></div>
+    </div>
+    <div id="hwEmpty" class="hw-empty">No sourced parts yet. Add screws, inserts, magnets, packaging&hellip;</div>
+    <button class="btn small hw-add" id="addHwBtn">
+      <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5v14M5 12h14"/></svg>
+      Add item
+    </button>
+  </div>
+
   <!-- order costs -->
   <div class="card">
     <div class="card-head">
@@ -607,6 +643,10 @@
           <div class="input-affix"><input type="number" id="setMarkup" class="num" min="0" step="1"><span class="affix">%</span></div>
         </div>
         <div class="cost-field">
+          <label for="setHwMarkup">Hardware markup</label>
+          <div class="input-affix"><input type="number" id="setHwMarkup" class="num" min="0" step="1"><span class="affix">%</span></div>
+        </div>
+        <div class="cost-field">
           <label for="setScrap">Failure / scrap buffer</label>
           <div class="input-affix"><input type="number" id="setScrap" class="num" min="0" step="1"><span class="affix">%</span></div>
         </div>
@@ -678,7 +718,7 @@
     ];
   }
 
-  var state = { quantity: 25, parts: [], assembly: 0, packing: 0, shipping: 0, adjust: 0,
+  var state = { quantity: 25, parts: [], hardware: [], assembly: 0, packing: 0, shipping: 0, adjust: 0,
     discountType: "percent", discountValue: 0, depositPct: 0 };
   var quotes = [];
   var activeQuoteId = null;
@@ -707,6 +747,9 @@
     phPerUnit: document.getElementById("phPerUnit"),
     phJob: document.getElementById("phJob"),
     breakdown: document.getElementById("breakdown"),
+    hwRows: document.getElementById("hwRows"),
+    hwEmpty: document.getElementById("hwEmpty"),
+    addHwBtn: document.getElementById("addHwBtn"),
     orderAssembly: document.getElementById("orderAssembly"),
     orderPacking: document.getElementById("orderPacking"),
     orderShipping: document.getElementById("orderShipping"),
@@ -749,6 +792,7 @@
   function render() {
     var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
     var parts = state.parts;
+    updateHardwareCells();
 
     if (!parts.length) {
       els.bomBody.innerHTML = "";
@@ -883,9 +927,21 @@
     var plateFees = totalPlates * num(c.plateFee, 0);
     var setupFee = num(c.setupFee, 0);
 
-    // minimum-order floor applies to the printing production subtotal
+    // sourced parts / hardware — bought by whole packs, its own markup
+    var hwMarkup = 1 + num(c.hardwareMarkup, 0) / 100;
+    var hwLines = [], hwSpend = 0;
+    state.hardware.forEach(function (h) {
+      var cc = hwCalc(h, qty);
+      if (cc.piecesNeeded <= 0 || cc.packs <= 0) return;   // skip incomplete rows
+      hwSpend += cc.spend;
+      hwLines.push({ name: h.name || "Item", piecesNeeded: cc.piecesNeeded, packs: cc.packs,
+        packQty: cc.packQty, packPrice: cc.packPrice, spend: cc.spend, perPiece: cc.perPiece });
+    });
+    var hardwareCost = hwSpend * hwMarkup;
+
+    // minimum-order floor applies to the production subtotal (printing + hardware)
     var minOrder = num(c.minOrder, 0);
-    var productionRaw = filamentCost + machineCost + plateFees;
+    var productionRaw = filamentCost + machineCost + plateFees + hardwareCost;
     var minApplied = minOrder > productionRaw;
     var productionSubtotal = minApplied ? minOrder : productionRaw;
     var minTopUp = minApplied ? (minOrder - productionRaw) : 0;
@@ -914,6 +970,7 @@
     return {
       qty: qty, totalMinutes: totalMinutes, totalPlates: totalPlates, materialLines: materialLines,
       filamentCost: filamentCost, machineCost: machineCost, plateFees: plateFees, setupFee: setupFee,
+      hwLines: hwLines, hwSpend: hwSpend, hardwareCost: hardwareCost, hwMarkupPct: num(c.hardwareMarkup, 0),
       productionRaw: productionRaw, productionSubtotal: productionSubtotal, perUnitProduction: productionSubtotal / qty,
       minOrder: minOrder, minApplied: minApplied, minTopUp: minTopUp,
       assembly: assembly, packing: packing, shipping: shipping, adjust: adjust,
@@ -951,10 +1008,17 @@
         (ml.priced ? '' : ' <span class="warn">— not in Settings</span>') + '</span><span class="num">' + money(ml.cost) + '</span></div>';
     }).join("");
 
-    var html = group("Printing — this batch");
+    var html = group("Production — this batch");
     html += row("Filament", "incl. " + r.scrapPct + "% scrap + " + r.markupPct + "% markup", money(r.filamentCost)) + mats;
     html += row("Machine time", fmtTime(r.totalMinutes) + " at " + money(r.machineRate) + "/hr, incl. " + r.scrapPct + "% scrap", money(r.machineCost));
     html += row("Plate fees", fmtInt(r.totalPlates) + (r.totalPlates === 1 ? " plate × " : " plates × ") + money(r.plateFee), money(r.plateFees));
+    if (r.hwLines.length) {
+      var hwSub = r.hwLines.map(function (h) {
+        return '<div class="bd-sub"><span>' + esc(h.name) + ' · ' + fmtInt(h.piecesNeeded) + ' pcs · ' +
+          fmtInt(h.packs) + (h.packs === 1 ? ' pack' : ' packs') + '</span><span class="num">' + money(h.spend) + '</span></div>';
+      }).join("");
+      html += row("Hardware & sourced parts", money(r.hwSpend) + " spend + " + pctStr(r.hwMarkupPct) + "% markup", money(r.hardwareCost)) + hwSub;
+    }
     if (r.minApplied) html += row("Minimum order applied", "production was " + money(r.productionRaw) + ", floor is " + money(r.minOrder), "+" + money(r.minTopUp), "bd-minimum");
     html += row("Production subtotal", money(r.perUnitProduction) + " / unit", money(r.productionSubtotal), "bd-subtotal");
 
@@ -993,8 +1057,10 @@
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.parts)) state = s; } } catch (e) {}
     ["assembly", "packing", "shipping", "adjust", "discountValue", "depositPct"].forEach(function (k) { state[k] = num(state[k], 0); });
     if (state.discountType !== "flat") state.discountType = "percent";
+    if (!Array.isArray(state.hardware)) state.hardware = [];
     els.qtyInput.value = state.quantity;
     renderOrderInputs();
+    renderHardware();
   }
 
   function renderOrderInputs() {
@@ -1006,6 +1072,73 @@
     els.depositPct.value = state.depositPct;
     els.discSeg.querySelectorAll("button").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-mode") === state.discountType);
+    });
+  }
+
+  // ---------- sourced parts / hardware ----------
+  // You buy whole packs: pieces needed = perUnit × qty, packs = ceil(pieces / packQty),
+  // real spend = packs × packPrice. Per-piece cost is informational.
+  function hwCalc(h, qty) {
+    var packQty = num(h.packQty, 0), packPrice = num(h.packPrice, 0), perUnit = num(h.perUnit, 0);
+    var piecesNeeded = perUnit * qty;
+    var packs = (packQty > 0 && piecesNeeded > 0) ? Math.ceil(piecesNeeded / packQty) : 0;
+    return { packQty: packQty, packPrice: packPrice, perUnit: perUnit, piecesNeeded: piecesNeeded,
+      packs: packs, spend: packs * packPrice, perPiece: packQty > 0 ? packPrice / packQty : 0 };
+  }
+
+  function hwCells(cc) {
+    return '<span class="big">' + fmtInt(cc.piecesNeeded) + '</span><span class="sub"> pcs</span><br>' +
+      '<span class="sub">' + fmtInt(cc.packs) + (cc.packs === 1 ? ' pack' : ' packs') + '</span>';
+  }
+  function hwCostCell(cc) {
+    return '<span class="big">' + money(cc.spend) + '</span><br><span class="sub">' + money(cc.perPiece) + '/pc</span>';
+  }
+
+  function renderHardware() {
+    els.hwEmpty.style.display = state.hardware.length ? "none" : "";
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    els.hwRows.innerHTML = state.hardware.map(function (h, i) {
+      var cc = hwCalc(h, qty);
+      return '<div class="hw-row" data-i="' + i + '">' +
+        '<input type="text" class="hw-name" value="' + esc(h.name) + '" placeholder="e.g. M3×8 screws">' +
+        '<div class="input-affix"><span class="affix">$</span><input type="number" class="hw-price num" min="0" step="0.01" value="' + esc(h.packPrice) + '"></div>' +
+        '<input type="number" class="hw-packqty num" min="1" step="1" value="' + esc(h.packQty) + '">' +
+        '<input type="number" class="hw-peru num" min="0" step="1" value="' + esc(h.perUnit) + '">' +
+        '<div class="hw-calc hw-need">' + hwCells(cc) + '</div>' +
+        '<div class="hw-calc hw-cost">' + hwCostCell(cc) + '</div>' +
+        '<button class="row-del hw-del" title="Remove item"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>' +
+      '</div>';
+    }).join("");
+    els.hwRows.querySelectorAll(".hw-row").forEach(function (rowEl) {
+      var i = parseInt(rowEl.getAttribute("data-i"), 10);
+      var nameEl = rowEl.querySelector(".hw-name"), priceEl = rowEl.querySelector(".hw-price");
+      var pqEl = rowEl.querySelector(".hw-packqty"), puEl = rowEl.querySelector(".hw-peru");
+      function upd() {
+        var h = state.hardware[i];
+        h.name = nameEl.value; h.packPrice = num(priceEl.value, 0);
+        h.packQty = num(pqEl.value, 0); h.perUnit = num(puEl.value, 0);
+        updateHwRow(rowEl, h); persist(); renderPricing();
+      }
+      nameEl.addEventListener("input", upd);
+      priceEl.addEventListener("input", upd);
+      pqEl.addEventListener("input", upd);
+      puEl.addEventListener("input", upd);
+      rowEl.querySelector(".hw-del").addEventListener("click", function () {
+        state.hardware.splice(i, 1); persist(); renderHardware(); renderPricing();
+      });
+    });
+  }
+
+  function updateHwRow(rowEl, h) {
+    var cc = hwCalc(h, Math.max(1, Math.floor(Number(state.quantity) || 1)));
+    rowEl.querySelector(".hw-need").innerHTML = hwCells(cc);
+    rowEl.querySelector(".hw-cost").innerHTML = hwCostCell(cc);
+  }
+
+  function updateHardwareCells() {
+    els.hwRows.querySelectorAll(".hw-row").forEach(function (rowEl) {
+      var i = parseInt(rowEl.getAttribute("data-i"), 10);
+      if (state.hardware[i]) updateHwRow(rowEl, state.hardware[i]);
     });
   }
   function persistQuotes() {
@@ -1034,6 +1167,7 @@
     var name = els.quoteName.value.trim();
     if (!name) { name = "Untitled quote"; els.quoteName.value = name; }
     var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)),
+      hardware: JSON.parse(JSON.stringify(state.hardware)),
       assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust,
       discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct };
     var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
@@ -1055,11 +1189,13 @@
       assembly: num(q.state.assembly, 0), packing: num(q.state.packing, 0),
       shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0),
       discountType: q.state.discountType === "flat" ? "flat" : "percent",
-      discountValue: num(q.state.discountValue, 0), depositPct: num(q.state.depositPct, 0) };
+      discountValue: num(q.state.discountValue, 0), depositPct: num(q.state.depositPct, 0),
+      hardware: Array.isArray(q.state.hardware) ? JSON.parse(JSON.stringify(q.state.hardware)) : [] };
     activeQuoteId = id;
     els.qtyInput.value = state.quantity;
     els.quoteName.value = q.name;
     renderOrderInputs();
+    renderHardware();
     persist(); render(); renderSaved();
     setStatus("Loaded “" + q.name + "”.", "ok");
   }
@@ -1133,6 +1269,7 @@
     lines.push("Filament:             " + money(pr.filamentCost));
     lines.push("Machine time:         " + money(pr.machineCost));
     lines.push("Plate fees:           " + money(pr.plateFees));
+    if (pr.hwLines.length) lines.push("Hardware:             " + money(pr.hardwareCost) + "  (" + money(pr.hwSpend) + " spend + " + (Math.round(pr.hwMarkupPct * 100) / 100) + "%)");
     if (pr.minApplied) lines.push("Minimum order:        +" + money(pr.minTopUp) + "  (floor " + money(pr.minOrder) + ")");
     lines.push("Production subtotal:  " + money(pr.productionSubtotal) + "  (" + money(pr.perUnitProduction) + "/unit)");
     if (pr.assembly > 0) lines.push("Assembly:             " + money(pr.assembly * pr.qty) + "  (" + money(pr.assembly) + "/unit)");
@@ -1433,6 +1570,11 @@
     });
   });
 
+  els.addHwBtn.addEventListener("click", function () {
+    state.hardware.push({ id: uid(), name: "", packPrice: 0, packQty: 100, perUnit: 1 });
+    persist(); renderHardware(); renderPricing();
+  });
+
   els.saveQuoteBtn.addEventListener("click", saveQuote);
   els.newQuoteBtn.addEventListener("click", newQuote);
   els.sendQuoteBtn.addEventListener("click", openSend);
@@ -1453,7 +1595,7 @@
   // ---------- shop settings (stored in browser) ----------
   var SETTINGS_KEY = "quotebench.settings.v1";
   var DEFAULT_SETTINGS = {
-    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
+    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, hardwareMarkup: 50, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
     materials: [
       { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
       { type: "PETG", rollPrice: 22.99, rollGrams: 1000 },
@@ -1473,6 +1615,7 @@
         machineRate: num(c.machineRate, DEFAULT_SETTINGS.costs.machineRate),
         plateFee: num(c.plateFee, DEFAULT_SETTINGS.costs.plateFee),
         filamentMarkup: num(c.filamentMarkup, DEFAULT_SETTINGS.costs.filamentMarkup),
+        hardwareMarkup: num(c.hardwareMarkup, DEFAULT_SETTINGS.costs.hardwareMarkup),
         scrapBuffer: num(c.scrapBuffer, DEFAULT_SETTINGS.costs.scrapBuffer),
         setupFee: num(c.setupFee, DEFAULT_SETTINGS.costs.setupFee),
         minOrder: num(c.minOrder, DEFAULT_SETTINGS.costs.minOrder)
@@ -1500,6 +1643,7 @@
     machineRate: document.getElementById("setMachineRate"),
     plateFee: document.getElementById("setPlateFee"),
     markup: document.getElementById("setMarkup"),
+    hwMarkup: document.getElementById("setHwMarkup"),
     scrap: document.getElementById("setScrap"),
     setup: document.getElementById("setSetup"),
     minOrder: document.getElementById("setMinOrder")
@@ -1509,6 +1653,7 @@
     setEls.machineRate.value = settings.costs.machineRate;
     setEls.plateFee.value = settings.costs.plateFee;
     setEls.markup.value = settings.costs.filamentMarkup;
+    setEls.hwMarkup.value = settings.costs.hardwareMarkup;
     setEls.scrap.value = settings.costs.scrapBuffer;
     setEls.setup.value = settings.costs.setupFee;
     setEls.minOrder.value = settings.costs.minOrder;
@@ -1549,7 +1694,7 @@
 
   function applySettingsChange() { saveSettings(); renderPricing(); }
 
-  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"], ["minOrder", "minOrder"]]
+  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["hwMarkup", "hardwareMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"], ["minOrder", "minOrder"]]
     .forEach(function (pair) {
       setEls[pair[0]].addEventListener("input", function () {
         settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); applySettingsChange();
