@@ -187,8 +187,10 @@
   .dz-note {
     margin-top: 14px; font-size: 12.5px; color: var(--info);
     background: rgba(103,179,250,0.09); border: 1px solid rgba(103,179,250,0.25);
-    border-radius: 9px; padding: 8px 12px; display: none;
+    border-radius: 9px; padding: 9px 13px; display: none;
+    white-space: pre-line; text-align: left;
   }
+  .dz-note.err { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
   .dz-actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
 
   /* ---------- quantity ---------- */
@@ -349,7 +351,7 @@
     <div class="dropzone" id="dropzone">
       <svg class="dz-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
       <div class="dz-title">Drop sliced <strong>.3mf</strong> files here</div>
-      <div class="dz-sub">Bambu Studio / OrcaSlicer project files &mdash; plate name, print time, filament use and colors are read automatically</div>
+      <div class="dz-sub">Bambu Studio &mdash; File &#9656; Export &#9656; &ldquo;Export all plate sliced file.&rdquo; Plate name, yield, print time, filament grams and colors are read automatically. Click to browse, or drop several files to combine their plates.</div>
       <div class="dz-actions">
         <button class="btn primary" id="loadSampleBtn">
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>
@@ -358,6 +360,7 @@
         <button class="btn ghost" id="clearBtn">Clear plates</button>
       </div>
       <div class="dz-note" id="dzNote"></div>
+      <input type="file" id="fileInput" accept=".3mf" multiple hidden>
     </div>
   </div>
 
@@ -492,6 +495,7 @@
   var els = {
     dropzone: document.getElementById("dropzone"),
     dzNote: document.getElementById("dzNote"),
+    fileInput: document.getElementById("fileInput"),
     loadSampleBtn: document.getElementById("loadSampleBtn"),
     clearBtn: document.getElementById("clearBtn"),
     qtyInput: document.getElementById("qtyInput"),
@@ -759,14 +763,208 @@
     applyTheme(t);
   }
 
+  // ---------- .3mf import (browser-native unzip, no libraries) ----------
+  // A .3mf is a ZIP. We read its central directory, pull the two config files
+  // we need, and inflate any deflated entries with DecompressionStream.
+  function u8ToText(u8) { return new TextDecoder("utf-8").decode(u8); }
+
+  async function inflateRaw(u8) {
+    if (typeof DecompressionStream === "undefined")
+      throw new Error("this browser can't unzip in-page (no DecompressionStream) — use a recent Chrome, Edge, or Safari 16.4+");
+    var stream = new Blob([u8]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  function findEocd(dv, len) {
+    var min = Math.max(0, len - 22 - 65535);
+    for (var i = len - 22; i >= min; i--) if (dv.getUint32(i, true) === 0x06054b50) return i;
+    return -1;
+  }
+
+  function readZipDirectory(arrayBuffer) {
+    var dv = new DataView(arrayBuffer), bytes = new Uint8Array(arrayBuffer), len = arrayBuffer.byteLength;
+    if (len < 22) throw new Error("file is too small to be a .3mf archive");
+    var eocd = findEocd(dv, len);
+    if (eocd < 0) throw new Error("not a valid .3mf/ZIP archive (no directory record)");
+    var count = dv.getUint16(eocd + 10, true);
+    var cdOffset = dv.getUint32(eocd + 16, true);
+    if (cdOffset === 0xffffffff) throw new Error("this .3mf uses ZIP64, which isn't supported yet");
+    var entries = {}, p = cdOffset;
+    for (var n = 0; n < count; n++) {
+      if (p + 46 > len || dv.getUint32(p, true) !== 0x02014b50) break;
+      var method = dv.getUint16(p + 10, true);
+      var compSize = dv.getUint32(p + 20, true);
+      var nameLen = dv.getUint16(p + 28, true);
+      var extraLen = dv.getUint16(p + 30, true);
+      var commentLen = dv.getUint16(p + 32, true);
+      var localOffset = dv.getUint32(p + 42, true);
+      var name = u8ToText(bytes.subarray(p + 46, p + 46 + nameLen));
+      entries[name] = { method: method, compSize: compSize, localOffset: localOffset };
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    return { dv: dv, bytes: bytes, entries: entries };
+  }
+
+  async function readZipEntry(zip, name) {
+    var e = zip.entries[name];
+    if (!e) return null;
+    var lo = e.localOffset;
+    if (zip.dv.getUint32(lo, true) !== 0x04034b50) throw new Error("corrupt entry header for " + name);
+    var nameLen = zip.dv.getUint16(lo + 26, true);
+    var extraLen = zip.dv.getUint16(lo + 28, true);
+    var start = lo + 30 + nameLen + extraLen;
+    var comp = zip.bytes.subarray(start, start + e.compSize);
+    if (e.method === 0) return u8ToText(comp);        // stored
+    if (e.method === 8) return u8ToText(await inflateRaw(comp)); // deflate
+    throw new Error("unsupported compression method " + e.method + " in " + name);
+  }
+
+  function findEntryName(zip, re) {
+    var keys = Object.keys(zip.entries);
+    for (var i = 0; i < keys.length; i++) if (re.test(keys[i])) return keys[i];
+    return null;
+  }
+
+  function childEls(el, tag) {
+    var out = [];
+    for (var i = 0; i < el.children.length; i++) if (el.children[i].tagName === tag) out.push(el.children[i]);
+    return out;
+  }
+  function metaMap(el) {
+    var m = {};
+    childEls(el, "metadata").forEach(function (x) { m[x.getAttribute("key")] = x.getAttribute("value"); });
+    return m;
+  }
+  function cleanName(s) { return String(s || "").replace(/\.(stl|obj|3mf|step|stp|3ds|ply)$/i, "").trim(); }
+  function mostCommon(arr) {
+    var c = {}, best = null, bestN = 0;
+    arr.forEach(function (x) { c[x] = (c[x] || 0) + 1; if (c[x] > bestN) { bestN = c[x]; best = x; } });
+    return best;
+  }
+
+  function parseModelSettings(text) {
+    var names = {};
+    try {
+      var doc = new DOMParser().parseFromString(text, "application/xml");
+      if (doc.querySelector("parsererror")) return names;
+      childEls(doc.documentElement, "plate").forEach(function (pl) {
+        var m = metaMap(pl);
+        if (m.plater_id) names[m.plater_id] = (m.plater_name || "").trim();
+      });
+    } catch (e) {}
+    return names;
+  }
+
+  function parseSliceInfo(text, plateNames, fileName) {
+    var doc = new DOMParser().parseFromString(text, "application/xml");
+    if (doc.querySelector("parsererror")) throw new Error("slice_info.config is not valid XML");
+    var plateEls = childEls(doc.documentElement, "plate");
+    if (!plateEls.length) throw new Error("no plate data in slice_info.config");
+    var out = [];
+    plateEls.forEach(function (pl, idx) {
+      var m = metaMap(pl);
+      var index = m.index || String(idx + 1);
+      var objects = childEls(pl, "object").filter(function (o) { return o.getAttribute("skipped") !== "true"; });
+      var yieldCount = objects.length || 1;
+      var objNames = objects.map(function (o) { return cleanName(o.getAttribute("name")); }).filter(Boolean);
+
+      var fils = childEls(pl, "filament").map(function (f) {
+        return { type: (f.getAttribute("type") || "").trim(), color: (f.getAttribute("color") || "").slice(0, 7),
+                 usedG: parseFloat(f.getAttribute("used_g")) || 0 };
+      });
+      var used = fils.filter(function (f) { return f.usedG > 0; });
+      if (!used.length) used = fils;
+      var seen = {}, colors = [];
+      used.forEach(function (f) {
+        var key = f.color + "|" + f.type;
+        if (seen[key]) return; seen[key] = 1;
+        colors.push({ hex: /^#([0-9a-f]{6})$/i.test(f.color) ? f.color : "#8a9296", name: f.type || "Filament" });
+      });
+      if (!colors.length) colors.push({ hex: "#8a9296", name: "Filament" });
+
+      var grams = parseFloat(m.weight);
+      if (!(grams > 0)) grams = used.reduce(function (a, f) { return a + f.usedG; }, 0);
+      var minutes = Math.round((parseFloat(m.prediction) || 0) / 60);
+
+      var pname = (plateNames && plateNames[index]) || "";
+      if (!pname) pname = mostCommon(objNames) || ("Plate " + index);
+
+      out.push({ id: uid(), name: pname, file: fileName + " · Plate " + index,
+        yield: yieldCount, minutes: minutes, grams: Math.round(grams * 10) / 10,
+        colors: colors, perUnit: 1, included: true });
+    });
+    return out;
+  }
+
+  async function parse3mf(arrayBuffer, fileName) {
+    var zip = readZipDirectory(arrayBuffer);
+    var sliceName = findEntryName(zip, /(^|\/)slice_info\.config$/i);
+    if (!sliceName) throw new Error("no slice data inside — this looks like an un-sliced model. In Bambu Studio use File ▸ Export ▸ Export all plate sliced file");
+    var plateNames = {};
+    var msName = findEntryName(zip, /(^|\/)model_settings\.config$/i);
+    if (msName) { try { plateNames = parseModelSettings(await readZipEntry(zip, msName)); } catch (e) {} }
+    return parseSliceInfo(await readZipEntry(zip, sliceName), plateNames, fileName);
+  }
+
+  var importing = false;
+  function showDz(msg, isErr) {
+    els.dzNote.style.display = "block";
+    els.dzNote.textContent = msg;
+    els.dzNote.classList.toggle("err", !!isErr);
+  }
+
+  async function importFiles(fileList) {
+    if (importing) return;
+    var files = Array.prototype.slice.call(fileList || []);
+    var three = files.filter(function (f) { return /\.3mf$/i.test(f.name); });
+    var skipped = files.length - three.length;
+    if (!three.length) { showDz("Those aren't .3mf files. Drop sliced .3mf files exported from Bambu Studio (“Export all plate sliced file”).", true); return; }
+
+    importing = true;
+    showDz("Reading " + three.length + " file" + (three.length === 1 ? "" : "s") + "…", false);
+    var collected = [], errors = [];
+    for (var i = 0; i < three.length; i++) {
+      var f = three[i];
+      try {
+        var plates = await parse3mf(await f.arrayBuffer(), f.name);
+        if (plates.length) collected = collected.concat(plates);
+        else errors.push(f.name + ": no plates found");
+      } catch (e) {
+        errors.push(f.name + ": " + (e && e.message ? e.message : "could not read file"));
+      }
+    }
+    importing = false;
+
+    if (collected.length) {
+      state.parts = collected;
+      if (!Number(state.quantity)) { state.quantity = 25; els.qtyInput.value = 25; }
+      activeQuoteId = null;
+      persist(); render();
+    }
+
+    var note = "";
+    if (collected.length) note = "Loaded " + collected.length + " plate" + (collected.length === 1 ? "" : "s") +
+      " from " + three.length + " file" + (three.length === 1 ? "" : "s") + ".";
+    if (skipped > 0) errors.push(skipped + " non-.3mf file" + (skipped === 1 ? "" : "s") + " ignored");
+    if (errors.length) {
+      showDz((note ? note + "\nSome files had problems:\n" : "Couldn't read the file" + (three.length === 1 ? "" : "s") + ":\n") +
+        "• " + errors.join("\n• "), !collected.length);
+    } else {
+      showDz(note, false);
+    }
+  }
+
   els.loadSampleBtn.addEventListener("click", function () {
     state.parts = sampleParts();
     if (!Number(state.quantity)) state.quantity = 25;
     els.qtyInput.value = state.quantity;
+    els.dzNote.style.display = "none";
     persist(); render();
     setStatus("Loaded 3 sample plates.", "ok");
   });
-  els.clearBtn.addEventListener("click", function () { state.parts = []; persist(); render(); });
+  els.clearBtn.addEventListener("click", function () {
+    state.parts = []; els.dzNote.style.display = "none"; persist(); render();
+  });
   els.qtyInput.addEventListener("input", function () {
     state.quantity = Math.max(1, Math.floor(Number(els.qtyInput.value) || 1)); persist(); render();
   });
@@ -803,12 +1001,15 @@
     els.dropzone.addEventListener(ev, function (e) { e.preventDefault(); els.dropzone.classList.remove("drag"); });
   });
   els.dropzone.addEventListener("drop", function (e) {
-    var files = e.dataTransfer && e.dataTransfer.files ? Array.prototype.slice.call(e.dataTransfer.files) : [];
-    var names = files.map(function (f) { return f.name; }).filter(function (n) { return /\.3mf$/i.test(n); });
-    els.dzNote.style.display = "block";
-    els.dzNote.textContent = names.length
-      ? "Reading real .3mf files is coming in the next step. For now, use “Load sample plates.” (Saw: " + names.join(", ") + ")"
-      : "Drop sliced .3mf project files here. Real file reading arrives in the next step — try “Load sample plates” for now.";
+    importFiles(e.dataTransfer && e.dataTransfer.files);
+  });
+  els.dropzone.addEventListener("click", function (e) {
+    if (e.target.closest("button")) return; // let the Load-sample / Clear buttons do their own thing
+    els.fileInput.click();
+  });
+  els.fileInput.addEventListener("change", function () {
+    importFiles(els.fileInput.files);
+    els.fileInput.value = ""; // allow re-selecting the same file
   });
 
   // hooks for the cloud layer
