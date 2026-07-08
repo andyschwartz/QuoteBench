@@ -133,6 +133,16 @@
 
   .header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
+  .sync-pill { font-size: 11.5px; font-weight: 560; color: var(--text-faint); display: inline-flex; align-items: center; gap: 6px; padding: 0 4px; white-space: nowrap; cursor: default; }
+  .sync-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .sync-pill.ok::before { background: var(--profit); }
+  .sync-pill.saving::before { background: var(--info); }
+  .sync-pill.offline { color: var(--accent); }
+  .sync-pill.offline::before { background: var(--accent); }
+  .sync-pill.err { color: var(--danger); }
+  .sync-pill.err::before { background: var(--danger); }
+  @media (max-width: 560px) { .sync-pill { font-size: 0; gap: 0; padding: 0; } .sync-pill::before { width: 9px; height: 9px; } }
+
   .btn {
     font: inherit; font-size: 14px; font-weight: 560;
     border-radius: 10px; padding: 0 16px; height: 42px;
@@ -445,6 +455,7 @@
       <span class="tag">Batch print quoting</span>
     </div>
     <div class="header-actions">
+      <span class="sync-pill saving" id="syncStatus" title="">Syncing…</span>
       <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -2176,7 +2187,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 var firebaseConfig = {
   apiKey: "AIzaSyAfvPj8RidN4fbAp3pUYdN-svYEOMotKt8",
@@ -2189,7 +2200,13 @@ var firebaseConfig = {
 
 var app = initializeApp(firebaseConfig);
 var auth = getAuth(app);
-var db = getFirestore(app);
+// Offline persistence: writes queue locally and sync when back online; reads work offline.
+var db;
+try {
+  db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+} catch (e) {
+  db = initializeFirestore(app, {});   // fall back to memory cache if IndexedDB is unavailable
+}
 
 var authGate = document.getElementById("authGate");
 var appRoot = document.getElementById("appRoot");
@@ -2201,6 +2218,21 @@ var acctEmail = document.getElementById("acctEmail");
 var acctAvatar = document.getElementById("acctAvatar");
 
 var currentUser = null, unsub = null, pushTimer = null;
+
+var syncEl = document.getElementById("syncStatus");
+function setSync(cls, text, title) {
+  if (!syncEl) return;
+  syncEl.className = "sync-pill " + (cls || "");
+  syncEl.textContent = text;
+  syncEl.title = title || "";
+}
+function updateSyncFromSnap(snap) {
+  if (snap.metadata.hasPendingWrites) setSync("saving", "Saving…", "Saved on this device, syncing to the cloud");
+  else if (snap.metadata.fromCache) setSync("offline", "Offline", "Working offline — changes will sync when you're back online");
+  else setSync("ok", "Synced", "Saved to your account");
+}
+window.addEventListener("offline", function () { if (currentUser) setSync("offline", "Offline", "Working offline — changes will sync when you're back online"); });
+window.addEventListener("online", function () { if (currentUser) setSync("saving", "Syncing…", ""); });
 
 function setAuthStatus(msg, isErr) {
   authStatus.textContent = msg || "";
@@ -2224,13 +2256,20 @@ signInBtn.addEventListener("click", function () {
 
 signOutBtn.addEventListener("click", function () { if (unsub) { unsub(); unsub = null; } signOut(auth); });
 
+function cloudWrite(payload) {
+  if (!currentUser) return;
+  setSync("saving", "Saving…", "");
+  // With offline persistence this resolves once committed to the backend; offline it stays
+  // queued (no reject) and the snapshot listener reports "Offline". Only real errors reject.
+  setDoc(doc(db, "quotebench", currentUser.uid), Object.assign({ updatedAt: Date.now() }, payload), { merge: true })
+    .catch(function (err) { setSync("err", "Sync failed", (err && err.message) ? err.message : "Could not reach the cloud"); });
+}
+
 // core app calls this whenever quotes change
 window.__qbCloudPush = function (arr) {
   if (!currentUser) return;
   if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(function () {
-    setDoc(doc(db, "quotebench", currentUser.uid), { quotes: arr, updatedAt: Date.now() }, { merge: true }).catch(function () {});
-  }, 400);
+  pushTimer = setTimeout(function () { cloudWrite({ quotes: arr }); }, 400);
 };
 
 // core app calls this whenever shop settings change
@@ -2238,9 +2277,7 @@ var settingsPushTimer = null;
 window.__qbCloudPushSettings = function (s) {
   if (!currentUser) return;
   if (settingsPushTimer) clearTimeout(settingsPushTimer);
-  settingsPushTimer = setTimeout(function () {
-    setDoc(doc(db, "quotebench", currentUser.uid), { settings: s, updatedAt: Date.now() }, { merge: true }).catch(function () {});
-  }, 400);
+  settingsPushTimer = setTimeout(function () { cloudWrite({ settings: s }); }, 400);
 };
 
 onAuthStateChanged(auth, function (user) {
@@ -2251,24 +2288,26 @@ onAuthStateChanged(auth, function (user) {
     if (user.photoURL) { acctAvatar.src = user.photoURL; acctAvatar.style.display = ""; } else { acctAvatar.style.display = "none"; }
     setAuthStatus("");
     showGate(false);
+    setSync("saving", "Syncing…", "");
+    // One-time seed: if the cloud is missing a section, push this device's copy up to start it.
     getDoc(doc(db, "quotebench", user.uid)).then(function (snap) {
       var data = snap.exists() ? snap.data() : {};
-      // settings: cloud wins if present, otherwise seed the cloud from this device
-      if (data.settings) window.__qb.setSettings(data.settings);
-      else window.__qbCloudPushSettings(window.__qb.getSettings());
-      // quotes: same
-      if (Array.isArray(data.quotes) && data.quotes.length) window.__qb.setQuotes(data.quotes);
-      else window.__qbCloudPush(window.__qb.getQuotes());
+      if (!data.settings) window.__qbCloudPushSettings(window.__qb.getSettings());
+      if (!Array.isArray(data.quotes)) window.__qbCloudPush(window.__qb.getQuotes());
     }).catch(function () {});
+    // Live sync + status. includeMetadataChanges lets us show Saving/Offline/Synced accurately.
     if (unsub) unsub();
-    unsub = onSnapshot(doc(db, "quotebench", user.uid), function (snap) {
+    unsub = onSnapshot(doc(db, "quotebench", user.uid), { includeMetadataChanges: true }, function (snap) {
+      updateSyncFromSnap(snap);
+      if (snap.metadata.hasPendingWrites) return;   // our own un-acked write echoing back — don't clobber local edits
       if (!snap.exists()) return;
       var data = snap.data();
       if (data.settings) window.__qb.setSettings(data.settings);
       if (Array.isArray(data.quotes)) window.__qb.setQuotes(data.quotes);
-    }, function () {});
+    }, function (err) { setSync("err", "Sync failed", (err && err.message) ? err.message : "Could not reach the cloud"); });
   } else {
     if (unsub) { unsub(); unsub = null; }
+    setSync("", "", "");
     showGate(true);
   }
 });
