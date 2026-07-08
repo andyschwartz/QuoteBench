@@ -287,10 +287,16 @@
   .bd-amt { font-size: 14.5px; font-weight: 600; white-space: nowrap; }
   .bd-sub { display: flex; justify-content: space-between; gap: 12px; padding: 2px 2px 2px 16px; font-size: 12.5px; color: var(--text-muted); }
   .bd-sub .warn { color: var(--danger); }
-  .bd-total { border-top: 1px solid var(--divider); margin-top: 6px; padding-top: 13px; }
+  .bd-group { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; padding: 15px 2px 3px; }
+  .bd-subtotal { border-top: 1px dashed var(--divider); margin-top: 3px; padding-top: 10px; }
+  .bd-subtotal .bd-label, .bd-subtotal .bd-amt { font-weight: 640; }
+  .bd-total { border-top: 1px solid var(--divider); margin-top: 8px; padding-top: 13px; }
   .bd-total .bd-label { font-weight: 660; font-size: 15px; }
   .bd-total .bd-amt { font-size: 16.5px; font-weight: 720; color: var(--accent); }
   [data-theme="light"] .bd-total .bd-amt { color: var(--accent-strong); }
+  .bd-allin .bd-label { font-weight: 600; }
+  .bd-allin .bd-amt { color: var(--accent); font-weight: 700; }
+  [data-theme="light"] .bd-allin .bd-amt { color: var(--accent-strong); }
   .price-empty { text-align: center; color: var(--text-faint); font-size: 14px; padding: 26px 20px; }
 
   /* ---------- quotes ---------- */
@@ -468,6 +474,34 @@
     </div>
   </div>
 
+  <!-- order costs -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Assembly, packing &amp; shipping</h2>
+        <p class="sub">Per-order labor and materials. Saved with the quote.</p>
+      </div>
+    </div>
+    <div class="cost-grid">
+      <div class="cost-field">
+        <label for="orderAssembly">Assembly labor</label>
+        <div class="input-affix"><span class="affix">$</span><input type="number" id="orderAssembly" class="num" min="0" step="0.01"><span class="affix">/ unit</span></div>
+      </div>
+      <div class="cost-field">
+        <label for="orderPacking">Packing materials</label>
+        <div class="input-affix"><span class="affix">$</span><input type="number" id="orderPacking" class="num" min="0" step="0.01"><span class="affix">/ unit</span></div>
+      </div>
+      <div class="cost-field">
+        <label for="orderShipping">Shipping</label>
+        <div class="input-affix"><span class="affix">$</span><input type="number" id="orderShipping" class="num" min="0" step="0.01"><span class="affix">/ order</span></div>
+      </div>
+      <div class="cost-field">
+        <label for="orderAdjust">Manual adjustment <span style="color:var(--text-faint);font-weight:440;">(+/&minus;)</span></label>
+        <div class="input-affix"><span class="affix">$</span><input type="number" id="orderAdjust" class="num" step="0.01"><span class="affix">/ unit</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- estimate -->
   <div class="card">
     <div class="card-head">
@@ -479,7 +513,7 @@
     <div id="priceBody">
       <div class="price-hero">
         <span class="ph-amount num" id="phPerUnit">$0.00</span>
-        <span class="ph-label">per unit</span>
+        <span class="ph-label">all-in per unit</span>
         <span class="ph-job num" id="phJob"></span>
       </div>
       <div class="breakdown" id="breakdown"></div>
@@ -605,7 +639,7 @@
     ];
   }
 
-  var state = { quantity: 25, parts: [] };
+  var state = { quantity: 25, parts: [], assembly: 0, packing: 0, shipping: 0, adjust: 0 };
   var quotes = [];
   var activeQuoteId = null;
 
@@ -633,6 +667,10 @@
     phPerUnit: document.getElementById("phPerUnit"),
     phJob: document.getElementById("phJob"),
     breakdown: document.getElementById("breakdown"),
+    orderAssembly: document.getElementById("orderAssembly"),
+    orderPacking: document.getElementById("orderPacking"),
+    orderShipping: document.getElementById("orderShipping"),
+    orderAdjust: document.getElementById("orderAdjust"),
     quoteName: document.getElementById("quoteName"),
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
@@ -752,7 +790,8 @@
   function money(n) {
     var v = Math.round((Number(n) || 0) * 100) / 100;
     if (Object.is(v, -0)) v = 0;
-    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var sign = v < 0 ? "-" : "";
+    return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function lookupCpg(type) {
     if (!settings || !settings.materials) return 0;
@@ -800,14 +839,23 @@
     var machineCost = hours * num(c.machineRate, 0) * scrap;   // time is wasted on a failed plate too
     var plateFees = totalPlates * num(c.plateFee, 0);
     var setupFee = num(c.setupFee, 0);
-    var productionSubtotal = filamentCost + machineCost + plateFees;
-    var jobTotal = productionSubtotal + setupFee;
+    var productionSubtotal = filamentCost + machineCost + plateFees;   // printing only
+
+    // order-level labor & materials (from the quote, not the shop settings)
+    var assembly = num(state.assembly, 0), packing = num(state.packing, 0);
+    var shipping = num(state.shipping, 0), adjust = num(state.adjust, 0);
+    var perUnitAddOns = assembly + packing + adjust;   // scale with the batch
+    var addOnsTotal = perUnitAddOns * qty;
+    var orderCharges = shipping + setupFee;            // flat over the whole order
+    var grandTotal = productionSubtotal + addOnsTotal + orderCharges;
 
     return {
       qty: qty, totalMinutes: totalMinutes, totalPlates: totalPlates, materialLines: materialLines,
       filamentCost: filamentCost, machineCost: machineCost, plateFees: plateFees, setupFee: setupFee,
-      productionSubtotal: productionSubtotal, jobTotal: jobTotal,
-      perUnit: jobTotal / qty, perUnitProduction: productionSubtotal / qty,
+      productionSubtotal: productionSubtotal, perUnitProduction: productionSubtotal / qty,
+      assembly: assembly, packing: packing, shipping: shipping, adjust: adjust,
+      perUnitAddOns: perUnitAddOns, addOnsTotal: addOnsTotal, orderCharges: orderCharges,
+      grandTotal: grandTotal, allInPerUnit: grandTotal / qty,
       machineRate: num(c.machineRate, 0), plateFee: num(c.plateFee, 0),
       scrapPct: num(c.scrapBuffer, 0), markupPct: num(c.filamentMarkup, 0)
     };
@@ -820,31 +868,56 @@
     els.priceBody.style.display = ""; els.priceEmpty.style.display = "none";
 
     var r = computePricing();
-    els.phPerUnit.textContent = money(r.perUnit);
-    els.phJob.textContent = fmtInt(r.qty) + (r.qty === 1 ? " unit · " : " units · ") + money(r.jobTotal) + " total";
+    els.phPerUnit.textContent = money(r.allInPerUnit);
+    els.phJob.textContent = fmtInt(r.qty) + (r.qty === 1 ? " unit · " : " units · ") + money(r.grandTotal) + " grand total";
+
+    function row(label, note, amt, cls) {
+      return '<div class="bd-row ' + (cls || "") + '"><div class="bd-label">' + esc(label) +
+        (note ? '<span class="bd-note">' + esc(note) + '</span>' : '') + '</div><div class="bd-amt num">' + amt + '</div></div>';
+    }
+    function group(label) { return '<div class="bd-group">' + esc(label) + '</div>'; }
+    var per = function (v) { return money(v) + "/unit × " + fmtInt(r.qty); };
 
     var mats = r.materialLines.map(function (ml) {
       return '<div class="bd-sub"><span>' + esc(ml.type) + ' · ' + (ml.grams / 1000).toFixed(2) + ' kg' +
         (ml.priced ? '' : ' <span class="warn">— not in Settings</span>') + '</span><span class="num">' + money(ml.cost) + '</span></div>';
     }).join("");
 
-    function row(label, note, amt) {
-      return '<div class="bd-row"><div class="bd-label">' + esc(label) +
-        (note ? '<span class="bd-note">' + esc(note) + '</span>' : '') + '</div><div class="bd-amt num">' + amt + '</div></div>';
-    }
-    var html = "";
+    var html = group("Printing — this batch");
     html += row("Filament", "incl. " + r.scrapPct + "% scrap + " + r.markupPct + "% markup", money(r.filamentCost)) + mats;
     html += row("Machine time", fmtTime(r.totalMinutes) + " at " + money(r.machineRate) + "/hr, incl. " + r.scrapPct + "% scrap", money(r.machineCost));
     html += row("Plate fees", fmtInt(r.totalPlates) + (r.totalPlates === 1 ? " plate × " : " plates × ") + money(r.plateFee), money(r.plateFees));
-    if (r.setupFee > 0) html += row("Setup fee", "one-time, folded into the job", money(r.setupFee));
-    html += '<div class="bd-row bd-total"><div class="bd-label">Job total</div><div class="bd-amt num">' + money(r.jobTotal) + '</div></div>';
+    html += row("Production subtotal", money(r.perUnitProduction) + " / unit", money(r.productionSubtotal), "bd-subtotal");
+
+    var addRows = "";
+    if (r.assembly > 0) addRows += row("Assembly labor", per(r.assembly), money(r.assembly * r.qty));
+    if (r.packing > 0) addRows += row("Packing materials", per(r.packing), money(r.packing * r.qty));
+    if (r.adjust !== 0) addRows += row("Manual adjustment", per(r.adjust), money(r.adjust * r.qty));
+    if (addRows) html += group("Per-unit add-ons") + addRows;
+
+    var ordRows = "";
+    if (r.shipping > 0) ordRows += row("Shipping", "flat, whole batch", money(r.shipping));
+    if (r.setupFee > 0) ordRows += row("Setup fee", "one-time", money(r.setupFee));
+    if (ordRows) html += group("Order charges") + ordRows;
+
+    html += '<div class="bd-row bd-total"><div class="bd-label">Grand total</div><div class="bd-amt num">' + money(r.grandTotal) + '</div></div>';
+    html += row("All-in per unit", fmtInt(r.qty) + (r.qty === 1 ? " unit" : " units"), money(r.allInPerUnit), "bd-allin");
     els.breakdown.innerHTML = html;
   }
 
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
   function loadState() {
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.parts)) state = s; } } catch (e) {}
+    ["assembly", "packing", "shipping", "adjust"].forEach(function (k) { state[k] = num(state[k], 0); });
     els.qtyInput.value = state.quantity;
+    renderOrderInputs();
+  }
+
+  function renderOrderInputs() {
+    els.orderAssembly.value = state.assembly;
+    els.orderPacking.value = state.packing;
+    els.orderShipping.value = state.shipping;
+    els.orderAdjust.value = state.adjust;
   }
   function persistQuotes() {
     try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {}
@@ -871,7 +944,8 @@
   function saveQuote() {
     var name = els.quoteName.value.trim();
     if (!name) { name = "Untitled quote"; els.quoteName.value = name; }
-    var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)) };
+    var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)),
+      assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust };
     var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
     if (existing) {
       existing.name = name; existing.updated = isoNow(); existing.state = snapshot;
@@ -887,10 +961,13 @@
   function recallQuote(id) {
     var q = quotes.find(function (x) { return x.id === id; });
     if (!q) return;
-    state = { quantity: q.state.quantity, parts: JSON.parse(JSON.stringify(q.state.parts)) };
+    state = { quantity: q.state.quantity, parts: JSON.parse(JSON.stringify(q.state.parts)),
+      assembly: num(q.state.assembly, 0), packing: num(q.state.packing, 0),
+      shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0) };
     activeQuoteId = id;
     els.qtyInput.value = state.quantity;
     els.quoteName.value = q.name;
+    renderOrderInputs();
     persist(); render(); renderSaved();
     setStatus("Loaded “" + q.name + "”.", "ok");
   }
@@ -961,12 +1038,17 @@
     var pr = computePricing();
     lines.push("Price");
     lines.push("-----");
-    lines.push("Filament:     " + money(pr.filamentCost));
-    lines.push("Machine time: " + money(pr.machineCost));
-    lines.push("Plate fees:   " + money(pr.plateFees));
-    if (pr.setupFee > 0) lines.push("Setup fee:    " + money(pr.setupFee));
-    lines.push("Job total:    " + money(pr.jobTotal));
-    lines.push("Per unit:     " + money(pr.perUnit) + "  (" + fmtInt(pr.qty) + " unit" + (pr.qty === 1 ? "" : "s") + ")");
+    lines.push("Filament:             " + money(pr.filamentCost));
+    lines.push("Machine time:         " + money(pr.machineCost));
+    lines.push("Plate fees:           " + money(pr.plateFees));
+    lines.push("Production subtotal:  " + money(pr.productionSubtotal) + "  (" + money(pr.perUnitProduction) + "/unit)");
+    if (pr.assembly > 0) lines.push("Assembly:             " + money(pr.assembly * pr.qty) + "  (" + money(pr.assembly) + "/unit)");
+    if (pr.packing > 0) lines.push("Packing:              " + money(pr.packing * pr.qty) + "  (" + money(pr.packing) + "/unit)");
+    if (pr.adjust !== 0) lines.push("Adjustment:           " + money(pr.adjust * pr.qty) + "  (" + money(pr.adjust) + "/unit)");
+    if (pr.shipping > 0) lines.push("Shipping:             " + money(pr.shipping) + "  (flat)");
+    if (pr.setupFee > 0) lines.push("Setup fee:            " + money(pr.setupFee) + "  (one-time)");
+    lines.push("Grand total:          " + money(pr.grandTotal));
+    lines.push("All-in per unit:      " + money(pr.allInPerUnit) + "  (" + fmtInt(pr.qty) + " unit" + (pr.qty === 1 ? "" : "s") + ")");
     lines.push("");
     lines.push("Prepared with QuoteBench");
     return { name: name, text: lines.join("\n") };
@@ -1232,6 +1314,13 @@
     state.quantity = (Math.floor(Number(state.quantity) || 1)) + 1;
     els.qtyInput.value = state.quantity; persist(); render();
   });
+
+  [["orderAssembly", "assembly"], ["orderPacking", "packing"], ["orderShipping", "shipping"], ["orderAdjust", "adjust"]]
+    .forEach(function (pair) {
+      els[pair[0]].addEventListener("input", function () {
+        state[pair[1]] = num(els[pair[0]].value, 0); persist(); renderPricing();
+      });
+    });
 
   els.saveQuoteBtn.addEventListener("click", saveQuote);
   els.newQuoteBtn.addEventListener("click", newQuote);
