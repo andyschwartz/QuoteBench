@@ -2047,7 +2047,10 @@
     try { var raw = localStorage.getItem(SETTINGS_KEY); if (raw) settings = normalizeSettings(JSON.parse(raw)); } catch (e) {}
     if (!settings) settings = normalizeSettings(DEFAULT_SETTINGS);
   }
-  function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {} }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}   // offline cache
+    if (window.__qbCloudPushSettings) window.__qbCloudPushSettings(settings);              // Firebase is the store
+  }
 
   function costPerGram(m) { var g = num(m.rollGrams, 0); return g > 0 ? num(m.rollPrice, 0) / g : 0; }
 
@@ -2149,7 +2152,14 @@
   // hooks for the cloud layer
   window.__qb = {
     getQuotes: function () { return quotes; },
-    setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; migrateQuotes(); try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); updateQuoteBadge(); } }
+    setQuotes: function (arr) { if (Array.isArray(arr)) { quotes = arr; migrateQuotes(); try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {} renderSaved(); updateQuoteBadge(); } },
+    getSettings: function () { return settings; },
+    setSettings: function (obj) {
+      if (!obj) return;
+      settings = normalizeSettings(obj);
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}   // cache only — no re-push
+      renderSettings(); renderPricing();
+    }
   };
 
   loadTheme();
@@ -2223,6 +2233,16 @@ window.__qbCloudPush = function (arr) {
   }, 400);
 };
 
+// core app calls this whenever shop settings change
+var settingsPushTimer = null;
+window.__qbCloudPushSettings = function (s) {
+  if (!currentUser) return;
+  if (settingsPushTimer) clearTimeout(settingsPushTimer);
+  settingsPushTimer = setTimeout(function () {
+    setDoc(doc(db, "quotebench", currentUser.uid), { settings: s, updatedAt: Date.now() }, { merge: true }).catch(function () {});
+  }, 400);
+};
+
 onAuthStateChanged(auth, function (user) {
   currentUser = user;
   if (user) {
@@ -2232,12 +2252,20 @@ onAuthStateChanged(auth, function (user) {
     setAuthStatus("");
     showGate(false);
     getDoc(doc(db, "quotebench", user.uid)).then(function (snap) {
-      if (snap.exists() && Array.isArray(snap.data().quotes) && snap.data().quotes.length) window.__qb.setQuotes(snap.data().quotes);
+      var data = snap.exists() ? snap.data() : {};
+      // settings: cloud wins if present, otherwise seed the cloud from this device
+      if (data.settings) window.__qb.setSettings(data.settings);
+      else window.__qbCloudPushSettings(window.__qb.getSettings());
+      // quotes: same
+      if (Array.isArray(data.quotes) && data.quotes.length) window.__qb.setQuotes(data.quotes);
       else window.__qbCloudPush(window.__qb.getQuotes());
     }).catch(function () {});
     if (unsub) unsub();
     unsub = onSnapshot(doc(db, "quotebench", user.uid), function (snap) {
-      if (snap.exists() && Array.isArray(snap.data().quotes)) window.__qb.setQuotes(snap.data().quotes);
+      if (!snap.exists()) return;
+      var data = snap.data();
+      if (data.settings) window.__qb.setSettings(data.settings);
+      if (Array.isArray(data.quotes)) window.__qb.setQuotes(data.quotes);
     }, function () {});
   } else {
     if (unsub) { unsub(); unsub = null; }
