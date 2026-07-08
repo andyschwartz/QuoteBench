@@ -294,6 +294,15 @@
   .bd-total .bd-label { font-weight: 660; font-size: 15px; }
   .bd-total .bd-amt { font-size: 16.5px; font-weight: 720; color: var(--accent); }
   [data-theme="light"] .bd-total .bd-amt { color: var(--accent-strong); }
+  .bd-minimum .bd-amt, .bd-minimum .bd-label { color: var(--info); }
+  .bd-discount .bd-amt { color: var(--profit, #16a34a); }
+  .bd-deposit { border-top: 1px dashed var(--divider); margin-top: 3px; padding-top: 10px; }
+  .bd-deposit .bd-label { font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--input-border); border-radius: 10px; overflow: hidden; background: var(--input-bg); flex-shrink: 0; }
+  .seg button { border: none; background: transparent; color: var(--text-muted); font: inherit; font-size: 14px; font-weight: 640; width: 40px; padding: 9px 0; cursor: pointer; transition: background .12s ease, color .12s ease; }
+  .seg button.active { background: var(--accent); color: var(--accent-text); }
+  .disc-row { display: flex; gap: 8px; }
+  .disc-row .input-affix { flex: 1; min-width: 0; }
   .bd-allin .bd-label { font-weight: 600; }
   .bd-allin .bd-amt { color: var(--accent); font-weight: 700; }
   [data-theme="light"] .bd-allin .bd-amt { color: var(--accent-strong); }
@@ -502,6 +511,32 @@
     </div>
   </div>
 
+  <!-- discount & deposit -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Discount &amp; deposit</h2>
+        <p class="sub">Deal terms for this quote. Saved with the quote.</p>
+      </div>
+    </div>
+    <div class="cost-grid">
+      <div class="cost-field">
+        <label for="discValue">Discount <span style="color:var(--text-faint);font-weight:440;">(off goods)</span></label>
+        <div class="disc-row">
+          <div class="seg" id="discSeg">
+            <button type="button" data-mode="percent">%</button>
+            <button type="button" data-mode="flat">$</button>
+          </div>
+          <div class="input-affix"><input type="number" id="discValue" class="num" min="0" step="0.01"></div>
+        </div>
+      </div>
+      <div class="cost-field">
+        <label for="depositPct">Required deposit</label>
+        <div class="input-affix"><input type="number" id="depositPct" class="num" min="0" max="100" step="1"><span class="affix">% now</span></div>
+      </div>
+    </div>
+  </div>
+
   <!-- estimate -->
   <div class="card">
     <div class="card-head">
@@ -579,6 +614,10 @@
           <label for="setSetup">One-time setup fee <span style="color:var(--text-faint);font-weight:440;">(optional)</span></label>
           <div class="input-affix"><span class="affix">$</span><input type="number" id="setSetup" class="num" min="0" step="0.01"><span class="affix">/ job</span></div>
         </div>
+        <div class="cost-field">
+          <label for="setMinOrder">Minimum order <span style="color:var(--text-faint);font-weight:440;">(floor on production)</span></label>
+          <div class="input-affix"><span class="affix">$</span><input type="number" id="setMinOrder" class="num" min="0" step="0.01"><span class="affix">/ order</span></div>
+        </div>
       </div>
     </div>
 
@@ -639,7 +678,8 @@
     ];
   }
 
-  var state = { quantity: 25, parts: [], assembly: 0, packing: 0, shipping: 0, adjust: 0 };
+  var state = { quantity: 25, parts: [], assembly: 0, packing: 0, shipping: 0, adjust: 0,
+    discountType: "percent", discountValue: 0, depositPct: 0 };
   var quotes = [];
   var activeQuoteId = null;
 
@@ -671,6 +711,9 @@
     orderPacking: document.getElementById("orderPacking"),
     orderShipping: document.getElementById("orderShipping"),
     orderAdjust: document.getElementById("orderAdjust"),
+    discSeg: document.getElementById("discSeg"),
+    discValue: document.getElementById("discValue"),
+    depositPct: document.getElementById("depositPct"),
     quoteName: document.getElementById("quoteName"),
     saveQuoteBtn: document.getElementById("saveQuoteBtn"),
     newQuoteBtn: document.getElementById("newQuoteBtn"),
@@ -839,23 +882,45 @@
     var machineCost = hours * num(c.machineRate, 0) * scrap;   // time is wasted on a failed plate too
     var plateFees = totalPlates * num(c.plateFee, 0);
     var setupFee = num(c.setupFee, 0);
-    var productionSubtotal = filamentCost + machineCost + plateFees;   // printing only
+
+    // minimum-order floor applies to the printing production subtotal
+    var minOrder = num(c.minOrder, 0);
+    var productionRaw = filamentCost + machineCost + plateFees;
+    var minApplied = minOrder > productionRaw;
+    var productionSubtotal = minApplied ? minOrder : productionRaw;
+    var minTopUp = minApplied ? (minOrder - productionRaw) : 0;
 
     // order-level labor & materials (from the quote, not the shop settings)
     var assembly = num(state.assembly, 0), packing = num(state.packing, 0);
     var shipping = num(state.shipping, 0), adjust = num(state.adjust, 0);
     var perUnitAddOns = assembly + packing + adjust;   // scale with the batch
     var addOnsTotal = perUnitAddOns * qty;
+
+    // quote discount off the goods (production + per-unit add-ons); shipping/setup not discounted
+    var goods = productionSubtotal + addOnsTotal;
+    var discType = state.discountType === "flat" ? "flat" : "percent";
+    var discInput = Math.max(0, num(state.discountValue, 0));
+    var discountAmount = discType === "percent" ? goods * (discInput / 100) : discInput;
+    discountAmount = Math.min(Math.max(0, discountAmount), goods);   // cap: never past free goods
+    var discountedGoods = goods - discountAmount;
+
     var orderCharges = shipping + setupFee;            // flat over the whole order
-    var grandTotal = productionSubtotal + addOnsTotal + orderCharges;
+    var grandTotal = discountedGoods + orderCharges;
+
+    var depositPct = Math.min(100, Math.max(0, num(state.depositPct, 0)));
+    var depositDue = grandTotal * depositPct / 100;
+    var balance = grandTotal - depositDue;
 
     return {
       qty: qty, totalMinutes: totalMinutes, totalPlates: totalPlates, materialLines: materialLines,
       filamentCost: filamentCost, machineCost: machineCost, plateFees: plateFees, setupFee: setupFee,
-      productionSubtotal: productionSubtotal, perUnitProduction: productionSubtotal / qty,
+      productionRaw: productionRaw, productionSubtotal: productionSubtotal, perUnitProduction: productionSubtotal / qty,
+      minOrder: minOrder, minApplied: minApplied, minTopUp: minTopUp,
       assembly: assembly, packing: packing, shipping: shipping, adjust: adjust,
-      perUnitAddOns: perUnitAddOns, addOnsTotal: addOnsTotal, orderCharges: orderCharges,
-      grandTotal: grandTotal, allInPerUnit: grandTotal / qty,
+      perUnitAddOns: perUnitAddOns, addOnsTotal: addOnsTotal,
+      goods: goods, discType: discType, discInput: discInput, discountAmount: discountAmount, discountedGoods: discountedGoods,
+      orderCharges: orderCharges, grandTotal: grandTotal, allInPerUnit: grandTotal / qty,
+      depositPct: depositPct, depositDue: depositDue, balance: balance,
       machineRate: num(c.machineRate, 0), plateFee: num(c.plateFee, 0),
       scrapPct: num(c.scrapBuffer, 0), markupPct: num(c.filamentMarkup, 0)
     };
@@ -869,13 +934,16 @@
 
     var r = computePricing();
     els.phPerUnit.textContent = money(r.allInPerUnit);
-    els.phJob.textContent = fmtInt(r.qty) + (r.qty === 1 ? " unit · " : " units · ") + money(r.grandTotal) + " grand total";
+    var jobCaption = fmtInt(r.qty) + (r.qty === 1 ? " unit · " : " units · ") + money(r.grandTotal) + " grand total";
+    if (r.depositPct > 0) jobCaption += " · " + money(r.depositDue) + " due now";
+    els.phJob.textContent = jobCaption;
 
     function row(label, note, amt, cls) {
       return '<div class="bd-row ' + (cls || "") + '"><div class="bd-label">' + esc(label) +
         (note ? '<span class="bd-note">' + esc(note) + '</span>' : '') + '</div><div class="bd-amt num">' + amt + '</div></div>';
     }
     function group(label) { return '<div class="bd-group">' + esc(label) + '</div>'; }
+    function pctStr(n) { return (Math.round((Number(n) || 0) * 100) / 100).toString(); }
     var per = function (v) { return money(v) + "/unit × " + fmtInt(r.qty); };
 
     var mats = r.materialLines.map(function (ml) {
@@ -887,6 +955,7 @@
     html += row("Filament", "incl. " + r.scrapPct + "% scrap + " + r.markupPct + "% markup", money(r.filamentCost)) + mats;
     html += row("Machine time", fmtTime(r.totalMinutes) + " at " + money(r.machineRate) + "/hr, incl. " + r.scrapPct + "% scrap", money(r.machineCost));
     html += row("Plate fees", fmtInt(r.totalPlates) + (r.totalPlates === 1 ? " plate × " : " plates × ") + money(r.plateFee), money(r.plateFees));
+    if (r.minApplied) html += row("Minimum order applied", "production was " + money(r.productionRaw) + ", floor is " + money(r.minOrder), "+" + money(r.minTopUp), "bd-minimum");
     html += row("Production subtotal", money(r.perUnitProduction) + " / unit", money(r.productionSubtotal), "bd-subtotal");
 
     var addRows = "";
@@ -895,12 +964,26 @@
     if (r.adjust !== 0) addRows += row("Manual adjustment", per(r.adjust), money(r.adjust * r.qty));
     if (addRows) html += group("Per-unit add-ons") + addRows;
 
+    if (r.discountAmount > 0) {
+      var dnote = r.discType === "percent"
+        ? pctStr(r.discInput) + "% off goods (" + money(r.goods) + ")"
+        : "flat, off goods (" + money(r.goods) + ")";
+      html += group("Discount") + row("Discount", dnote, money(-r.discountAmount), "bd-discount");
+    }
+
     var ordRows = "";
     if (r.shipping > 0) ordRows += row("Shipping", "flat, whole batch", money(r.shipping));
     if (r.setupFee > 0) ordRows += row("Setup fee", "one-time", money(r.setupFee));
     if (ordRows) html += group("Order charges") + ordRows;
 
     html += '<div class="bd-row bd-total"><div class="bd-label">Grand total</div><div class="bd-amt num">' + money(r.grandTotal) + '</div></div>';
+
+    if (r.depositPct > 0) {
+      html += group("Payment schedule");
+      html += row("Deposit due now", pctStr(r.depositPct) + "% of grand total", money(r.depositDue), "bd-deposit");
+      html += row("Balance on delivery", "", money(r.balance), "");
+    }
+
     html += row("All-in per unit", fmtInt(r.qty) + (r.qty === 1 ? " unit" : " units"), money(r.allInPerUnit), "bd-allin");
     els.breakdown.innerHTML = html;
   }
@@ -908,7 +991,8 @@
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
   function loadState() {
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.parts)) state = s; } } catch (e) {}
-    ["assembly", "packing", "shipping", "adjust"].forEach(function (k) { state[k] = num(state[k], 0); });
+    ["assembly", "packing", "shipping", "adjust", "discountValue", "depositPct"].forEach(function (k) { state[k] = num(state[k], 0); });
+    if (state.discountType !== "flat") state.discountType = "percent";
     els.qtyInput.value = state.quantity;
     renderOrderInputs();
   }
@@ -918,6 +1002,11 @@
     els.orderPacking.value = state.packing;
     els.orderShipping.value = state.shipping;
     els.orderAdjust.value = state.adjust;
+    els.discValue.value = state.discountValue;
+    els.depositPct.value = state.depositPct;
+    els.discSeg.querySelectorAll("button").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mode") === state.discountType);
+    });
   }
   function persistQuotes() {
     try { localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes)); } catch (e) {}
@@ -945,7 +1034,8 @@
     var name = els.quoteName.value.trim();
     if (!name) { name = "Untitled quote"; els.quoteName.value = name; }
     var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)),
-      assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust };
+      assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust,
+      discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct };
     var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
     if (existing) {
       existing.name = name; existing.updated = isoNow(); existing.state = snapshot;
@@ -963,7 +1053,9 @@
     if (!q) return;
     state = { quantity: q.state.quantity, parts: JSON.parse(JSON.stringify(q.state.parts)),
       assembly: num(q.state.assembly, 0), packing: num(q.state.packing, 0),
-      shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0) };
+      shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0),
+      discountType: q.state.discountType === "flat" ? "flat" : "percent",
+      discountValue: num(q.state.discountValue, 0), depositPct: num(q.state.depositPct, 0) };
     activeQuoteId = id;
     els.qtyInput.value = state.quantity;
     els.quoteName.value = q.name;
@@ -1041,14 +1133,22 @@
     lines.push("Filament:             " + money(pr.filamentCost));
     lines.push("Machine time:         " + money(pr.machineCost));
     lines.push("Plate fees:           " + money(pr.plateFees));
+    if (pr.minApplied) lines.push("Minimum order:        +" + money(pr.minTopUp) + "  (floor " + money(pr.minOrder) + ")");
     lines.push("Production subtotal:  " + money(pr.productionSubtotal) + "  (" + money(pr.perUnitProduction) + "/unit)");
     if (pr.assembly > 0) lines.push("Assembly:             " + money(pr.assembly * pr.qty) + "  (" + money(pr.assembly) + "/unit)");
     if (pr.packing > 0) lines.push("Packing:              " + money(pr.packing * pr.qty) + "  (" + money(pr.packing) + "/unit)");
     if (pr.adjust !== 0) lines.push("Adjustment:           " + money(pr.adjust * pr.qty) + "  (" + money(pr.adjust) + "/unit)");
+    if (pr.discountAmount > 0) lines.push("Discount:             " + money(-pr.discountAmount) +
+      "  (" + (pr.discType === "percent" ? (Math.round(pr.discInput * 100) / 100) + "% off goods" : "flat off goods") + ")");
     if (pr.shipping > 0) lines.push("Shipping:             " + money(pr.shipping) + "  (flat)");
     if (pr.setupFee > 0) lines.push("Setup fee:            " + money(pr.setupFee) + "  (one-time)");
     lines.push("Grand total:          " + money(pr.grandTotal));
     lines.push("All-in per unit:      " + money(pr.allInPerUnit) + "  (" + fmtInt(pr.qty) + " unit" + (pr.qty === 1 ? "" : "s") + ")");
+    if (pr.depositPct > 0) {
+      lines.push("");
+      lines.push("Deposit due now:      " + money(pr.depositDue) + "  (" + (Math.round(pr.depositPct * 100) / 100) + "%)");
+      lines.push("Balance on delivery:  " + money(pr.balance));
+    }
     lines.push("");
     lines.push("Prepared with QuoteBench");
     return { name: name, text: lines.join("\n") };
@@ -1315,12 +1415,23 @@
     els.qtyInput.value = state.quantity; persist(); render();
   });
 
-  [["orderAssembly", "assembly"], ["orderPacking", "packing"], ["orderShipping", "shipping"], ["orderAdjust", "adjust"]]
+  [["orderAssembly", "assembly"], ["orderPacking", "packing"], ["orderShipping", "shipping"], ["orderAdjust", "adjust"],
+   ["discValue", "discountValue"], ["depositPct", "depositPct"]]
     .forEach(function (pair) {
       els[pair[0]].addEventListener("input", function () {
         state[pair[1]] = num(els[pair[0]].value, 0); persist(); renderPricing();
       });
     });
+
+  els.discSeg.querySelectorAll("button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.discountType = b.getAttribute("data-mode") === "flat" ? "flat" : "percent";
+      els.discSeg.querySelectorAll("button").forEach(function (x) {
+        x.classList.toggle("active", x === b);
+      });
+      persist(); renderPricing();
+    });
+  });
 
   els.saveQuoteBtn.addEventListener("click", saveQuote);
   els.newQuoteBtn.addEventListener("click", newQuote);
@@ -1342,7 +1453,7 @@
   // ---------- shop settings (stored in browser) ----------
   var SETTINGS_KEY = "quotebench.settings.v1";
   var DEFAULT_SETTINGS = {
-    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5, setupFee: 0 },
+    costs: { machineRate: 3.00, plateFee: 1.00, filamentMarkup: 30, scrapBuffer: 5, setupFee: 0, minOrder: 0 },
     materials: [
       { type: "PLA", rollPrice: 19.99, rollGrams: 1000 },
       { type: "PETG", rollPrice: 22.99, rollGrams: 1000 },
@@ -1363,7 +1474,8 @@
         plateFee: num(c.plateFee, DEFAULT_SETTINGS.costs.plateFee),
         filamentMarkup: num(c.filamentMarkup, DEFAULT_SETTINGS.costs.filamentMarkup),
         scrapBuffer: num(c.scrapBuffer, DEFAULT_SETTINGS.costs.scrapBuffer),
-        setupFee: num(c.setupFee, DEFAULT_SETTINGS.costs.setupFee)
+        setupFee: num(c.setupFee, DEFAULT_SETTINGS.costs.setupFee),
+        minOrder: num(c.minOrder, DEFAULT_SETTINGS.costs.minOrder)
       },
       materials: Array.isArray(s.materials) && s.materials.length
         ? s.materials.map(function (m) { return { type: String(m.type == null ? "" : m.type), rollPrice: num(m.rollPrice, 0), rollGrams: num(m.rollGrams, 1000) }; })
@@ -1389,7 +1501,8 @@
     plateFee: document.getElementById("setPlateFee"),
     markup: document.getElementById("setMarkup"),
     scrap: document.getElementById("setScrap"),
-    setup: document.getElementById("setSetup")
+    setup: document.getElementById("setSetup"),
+    minOrder: document.getElementById("setMinOrder")
   };
 
   function renderSettings() {
@@ -1398,6 +1511,7 @@
     setEls.markup.value = settings.costs.filamentMarkup;
     setEls.scrap.value = settings.costs.scrapBuffer;
     setEls.setup.value = settings.costs.setupFee;
+    setEls.minOrder.value = settings.costs.minOrder;
     renderMaterials();
   }
 
@@ -1435,7 +1549,7 @@
 
   function applySettingsChange() { saveSettings(); renderPricing(); }
 
-  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"]]
+  [["machineRate", "machineRate"], ["plateFee", "plateFee"], ["markup", "filamentMarkup"], ["scrap", "scrapBuffer"], ["setup", "setupFee"], ["minOrder", "minOrder"]]
     .forEach(function (pair) {
       setEls[pair[0]].addEventListener("input", function () {
         settings.costs[pair[1]] = num(setEls[pair[0]].value, 0); applySettingsChange();
