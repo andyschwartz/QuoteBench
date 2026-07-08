@@ -835,7 +835,17 @@
     childEls(el, "metadata").forEach(function (x) { m[x.getAttribute("key")] = x.getAttribute("value"); });
     return m;
   }
-  function cleanName(s) { return String(s || "").replace(/\.(stl|obj|3mf|step|stp|3ds|ply)$/i, "").trim(); }
+  function cleanName(s) {
+    return String(s || "")
+      .replace(/\.(stl|obj|3mf|step|stp|3ds|ply)$/i, "")  // drop file extension
+      .replace(/\s*\(\d+\)[a-z]?$/i, "")                  // drop Bambu instance suffix e.g. " (1)b"
+      .trim();
+  }
+  // Bambu often leaves parts named "root_1", "Object 2", bare numbers, etc. — not useful as a plate name.
+  function isGenericName(s) {
+    return !s || /^root(_\d+)?$/i.test(s) ||
+      /^(object|obj|part|mesh|body|solid|instance)[\s_-]*\d*$/i.test(s) || /^\d+$/.test(s);
+  }
   function mostCommon(arr) {
     var c = {}, best = null, bestN = 0;
     arr.forEach(function (x) { c[x] = (c[x] || 0) + 1; if (c[x] > bestN) { bestN = c[x]; best = x; } });
@@ -860,13 +870,15 @@
     if (doc.querySelector("parsererror")) throw new Error("slice_info.config is not valid XML");
     var plateEls = childEls(doc.documentElement, "plate");
     if (!plateEls.length) throw new Error("no plate data in slice_info.config");
+    var fileBase = String(fileName || "").replace(/\.3mf$/i, "").replace(/\.gcode$/i, "").trim();
     var out = [];
     plateEls.forEach(function (pl, idx) {
       var m = metaMap(pl);
       var index = m.index || String(idx + 1);
       var objects = childEls(pl, "object").filter(function (o) { return o.getAttribute("skipped") !== "true"; });
       var yieldCount = objects.length || 1;
-      var objNames = objects.map(function (o) { return cleanName(o.getAttribute("name")); }).filter(Boolean);
+      var objNames = objects.map(function (o) { return cleanName(o.getAttribute("name")); })
+        .filter(function (n) { return !isGenericName(n); });
 
       var fils = childEls(pl, "filament").map(function (f) {
         return { type: (f.getAttribute("type") || "").trim(), color: (f.getAttribute("color") || "").slice(0, 7),
@@ -887,7 +899,11 @@
       var minutes = Math.round((parseFloat(m.prediction) || 0) / 60);
 
       var pname = (plateNames && plateNames[index]) || "";
-      if (!pname) pname = mostCommon(objNames) || ("Plate " + index);
+      if (!pname) {
+        // A single-plate export's filename is usually the most descriptive label.
+        if (plateEls.length === 1 && fileBase && !/^plate[_\s]?\d*$/i.test(fileBase)) pname = fileBase;
+        else pname = mostCommon(objNames) || fileBase || ("Plate " + index);
+      }
 
       out.push({ id: uid(), name: pname, file: fileName + " · Plate " + index,
         yield: yieldCount, minutes: minutes, grams: Math.round(grams * 10) / 10,
