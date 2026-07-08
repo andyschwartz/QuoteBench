@@ -331,6 +331,25 @@
   .bd-total .bd-amt.pf-pos { color: var(--profit); }
   .bd-total .bd-amt.pf-neg { color: var(--danger); }
 
+  /* ---------- production ---------- */
+  .prod-inputs { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 6px; }
+  .prod-inputs .field label { font-size: 12px; font-weight: 560; color: var(--text-muted); }
+  .prod-num { width: 92px; }
+  .prod-num input { width: 100%; text-align: center; font-size: 18px; font-weight: 640; }
+  .daysel { display: inline-flex; gap: 4px; }
+  .daysel button { width: 34px; height: 40px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-muted); border-radius: 9px; font: inherit; font-size: 12px; font-weight: 640; cursor: pointer; transition: background .12s ease, color .12s ease, border-color .12s ease; }
+  .daysel button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .prod-stats { margin-top: 20px; }
+  .prod-list { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+  .prod-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bg-alt); border: 1px solid var(--card-border); border-radius: 11px; }
+  .prod-item .pi-main { flex: 1; min-width: 0; }
+  .prod-item .pi-name { font-size: 14px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .prod-item .pi-meta { font-size: 12px; color: var(--text-faint); margin-top: 1px; font-variant-numeric: tabular-nums; }
+  .tag { font-size: 11px; font-weight: 640; padding: 4px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
+  .tag.overnight { color: var(--info); background: rgba(103,179,250,0.12); }
+  .tag.cycle { color: var(--accent); background: var(--accent-soft); }
+  [data-theme="light"] .tag.cycle { color: var(--accent-strong); }
+
   /* ---------- quotes ---------- */
   .quote-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .quote-toolbar .grow { flex: 1 1 200px; }
@@ -620,6 +639,39 @@
     <div class="price-empty" id="profitEmpty">Load or drop plates to see profit.</div>
   </div>
 
+  <!-- production (internal) -->
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Production <span class="internal-badge">Internal &middot; planning</span></h2>
+        <p class="sub">Rough calendar time to run the batch. You start plates only during working hours; printers run overnight.</p>
+      </div>
+    </div>
+    <div class="prod-inputs">
+      <div class="field prod-num">
+        <label for="prodPrinters">Printers</label>
+        <input type="number" id="prodPrinters" class="num" min="1" step="1">
+      </div>
+      <div class="field prod-num">
+        <label for="prodHours">Hours/day at bench</label>
+        <input type="number" id="prodHours" class="num" min="1" max="24" step="0.5">
+      </div>
+      <div class="field">
+        <label>Work days</label>
+        <div class="daysel" id="prodDays"></div>
+      </div>
+    </div>
+    <div id="prodBody">
+      <div class="totals prod-stats" style="grid-template-columns:repeat(3,1fr);">
+        <div class="stat accent"><div class="k">Calendar time</div><div class="v num" id="prodCal">—</div></div>
+        <div class="stat"><div class="k">Bench days</div><div class="v num" id="prodBench">—</div></div>
+        <div class="stat"><div class="k">Printer utilization</div><div class="v num" id="prodUtil">—</div></div>
+      </div>
+      <div class="prod-list" id="prodList"></div>
+    </div>
+    <div class="price-empty" id="prodEmpty">Load or drop plates to plan the run.</div>
+  </div>
+
   <!-- quote -->
   <div class="card">
     <div class="card-head">
@@ -751,7 +803,8 @@
   }
 
   var state = { quantity: 25, parts: [], hardware: [], assembly: 0, packing: 0, shipping: 0, adjust: 0,
-    discountType: "percent", discountValue: 0, depositPct: 0 };
+    discountType: "percent", discountValue: 0, depositPct: 0,
+    printers: 2, hoursPerDay: 8, workDays: [1, 2, 3, 4, 5] };
   var quotes = [];
   var activeQuoteId = null;
 
@@ -785,6 +838,15 @@
     pfMargin: document.getElementById("pfMargin"),
     pfPerUnit: document.getElementById("pfPerUnit"),
     pfBreakdown: document.getElementById("pfBreakdown"),
+    prodPrinters: document.getElementById("prodPrinters"),
+    prodHours: document.getElementById("prodHours"),
+    prodDays: document.getElementById("prodDays"),
+    prodBody: document.getElementById("prodBody"),
+    prodEmpty: document.getElementById("prodEmpty"),
+    prodCal: document.getElementById("prodCal"),
+    prodBench: document.getElementById("prodBench"),
+    prodUtil: document.getElementById("prodUtil"),
+    prodList: document.getElementById("prodList"),
     hwRows: document.getElementById("hwRows"),
     hwEmpty: document.getElementById("hwEmpty"),
     addHwBtn: document.getElementById("addHwBtn"),
@@ -1062,6 +1124,7 @@
     if (!active) {
       els.priceBody.style.display = "none"; els.priceEmpty.style.display = "";
       els.profitBody.style.display = "none"; els.profitEmpty.style.display = "";
+      els.prodBody.style.display = "none"; els.prodEmpty.style.display = "";
       return;
     }
     els.priceBody.style.display = ""; els.priceEmpty.style.display = "none";
@@ -1129,6 +1192,7 @@
     els.breakdown.innerHTML = html;
 
     renderProfit(r);
+    renderProduction();
   }
 
   function fmtPct(n) { return (Math.round((Number(n) || 0) * 10) / 10).toFixed(1) + "%"; }
@@ -1167,14 +1231,108 @@
     els.pfBreakdown.innerHTML = html;
   }
 
+  // ---------- production timeline (rough, internal) ----------
+  var DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];   // Sun..Sat
+  var DAY_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // How many calendar days it takes to fit W working days, given d work days per week.
+  function calendarDaysFor(W, d) {
+    if (W <= 0) return 0;
+    if (d >= 7) return W;
+    var fullWeeks = Math.floor((W - 1) / d);
+    var rem = W - fullWeeks * d;   // 1..d
+    return fullWeeks * 7 + rem;
+  }
+
+  function renderProductionInputs() {
+    els.prodPrinters.value = state.printers;
+    els.prodHours.value = state.hoursPerDay;
+    els.prodDays.innerHTML = DAY_LABELS.map(function (lab, i) {
+      var on = state.workDays.indexOf(i) !== -1;
+      return '<button type="button" data-day="' + i + '" class="' + (on ? "active" : "") + '" title="' + DAY_FULL[i] + '">' + lab + '</button>';
+    }).join("");
+    els.prodDays.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var day = parseInt(b.getAttribute("data-day"), 10);
+        var idx = state.workDays.indexOf(day);
+        if (idx === -1) state.workDays.push(day);
+        else if (state.workDays.length > 1) state.workDays.splice(idx, 1);   // keep at least one
+        state.workDays.sort(function (x, y) { return x - y; });
+        b.classList.toggle("active", state.workDays.indexOf(day) !== -1);
+        persist(); renderProduction();
+      });
+    });
+  }
+
+  function computeProduction() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var H = Math.min(24, Math.max(1, num(state.hoursPerDay, 8)));
+    var P = Math.max(1, Math.floor(num(state.printers, 1)));
+    var d = Math.min(7, Math.max(1, (state.workDays || []).length));
+
+    var types = [], totalPlates = 0, totalMinutes = 0, printerDays = 0;
+    state.parts.forEach(function (p) {
+      if (!p.included) return;
+      var need = platesNeeded(p, qty); if (need <= 0) return;
+      var T = num(p.minutes, 0) / 60;   // hours per plate
+      var overnight = T > H, perDay, contrib;
+      if (overnight) {
+        var slots = Math.max(1, Math.ceil(T / 24));   // >24h prints occupy several days each
+        perDay = 1 / slots;
+        contrib = need * slots;
+      } else {
+        perDay = Math.floor(H / T) + 1;   // daytime swaps + one overnight start
+        contrib = need / perDay;
+      }
+      totalPlates += need;
+      totalMinutes += need * num(p.minutes, 0);
+      printerDays += contrib;
+      types.push({ name: p.name, minutes: num(p.minutes, 0), count: need, perDay: perDay, overnight: overnight, slots: overnight ? Math.max(1, Math.ceil(T / 24)) : 1 });
+    });
+    types.sort(function (a, b) { return b.minutes - a.minutes; });
+
+    var benchDays = Math.ceil(printerDays / P);
+    var calendarDays = calendarDaysFor(benchDays, d);
+    var totalHours = totalMinutes / 60;
+    var util = (calendarDays > 0) ? Math.min(100, (totalHours / (P * calendarDays * 24)) * 100) : 0;
+
+    return { qty: qty, H: H, P: P, d: d, types: types, totalPlates: totalPlates, totalHours: totalHours,
+      benchDays: benchDays, calendarDays: calendarDays, util: util };
+  }
+
+  function renderProduction() {
+    var qty = Math.max(1, Math.floor(Number(state.quantity) || 1));
+    var active = state.parts.some(function (p) { return p.included && platesNeeded(p, qty) > 0; });
+    if (!active) { els.prodBody.style.display = "none"; els.prodEmpty.style.display = ""; return; }
+    els.prodBody.style.display = ""; els.prodEmpty.style.display = "none";
+
+    var r = computeProduction();
+    els.prodCal.innerHTML = fmtInt(r.calendarDays) + ' <small style="font-size:13px;font-weight:500;color:var(--text-muted);">' + (r.calendarDays === 1 ? "day" : "days") + '</small>';
+    els.prodBench.innerHTML = "~" + fmtInt(r.benchDays) + ' <small style="font-size:13px;font-weight:500;color:var(--text-muted);">' + (r.benchDays === 1 ? "day" : "days") + " at bench</small>";
+    els.prodUtil.textContent = Math.round(r.util) + "%";
+
+    els.prodList.innerHTML = r.types.map(function (t) {
+      var tag = t.overnight
+        ? '<span class="tag overnight">Overnight' + (t.slots > 1 ? " · ~" + t.slots + "d each" : "") + '</span>'
+        : '<span class="tag cycle">Cycle ~' + fmtInt(t.perDay) + '×/day</span>';
+      return '<div class="prod-item"><div class="pi-main"><div class="pi-name">' + esc(t.name) + '</div>' +
+        '<div class="pi-meta">' + fmtTime(t.minutes) + ' each · ' + fmtInt(t.count) + (t.count === 1 ? " plate" : " plates") + '</div></div>' +
+        tag + '</div>';
+    }).join("");
+  }
+
   function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
   function loadState() {
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) { var s = JSON.parse(raw); if (s && Array.isArray(s.parts)) state = s; } } catch (e) {}
     ["assembly", "packing", "shipping", "adjust", "discountValue", "depositPct"].forEach(function (k) { state[k] = num(state[k], 0); });
     if (state.discountType !== "flat") state.discountType = "percent";
     if (!Array.isArray(state.hardware)) state.hardware = [];
+    state.printers = Math.max(1, Math.floor(num(state.printers, 2)));
+    state.hoursPerDay = Math.min(24, Math.max(1, num(state.hoursPerDay, 8)));
+    if (!Array.isArray(state.workDays) || !state.workDays.length) state.workDays = [1, 2, 3, 4, 5];
     els.qtyInput.value = state.quantity;
     renderOrderInputs();
+    renderProductionInputs();
     renderHardware();
   }
 
@@ -1284,7 +1442,8 @@
     var snapshot = { quantity: state.quantity, parts: JSON.parse(JSON.stringify(state.parts)),
       hardware: JSON.parse(JSON.stringify(state.hardware)),
       assembly: state.assembly, packing: state.packing, shipping: state.shipping, adjust: state.adjust,
-      discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct };
+      discountType: state.discountType, discountValue: state.discountValue, depositPct: state.depositPct,
+      printers: state.printers, hoursPerDay: state.hoursPerDay, workDays: state.workDays.slice() };
     var existing = activeQuoteId && quotes.find(function (q) { return q.id === activeQuoteId; });
     if (existing) {
       existing.name = name; existing.updated = isoNow(); existing.state = snapshot;
@@ -1305,11 +1464,15 @@
       shipping: num(q.state.shipping, 0), adjust: num(q.state.adjust, 0),
       discountType: q.state.discountType === "flat" ? "flat" : "percent",
       discountValue: num(q.state.discountValue, 0), depositPct: num(q.state.depositPct, 0),
-      hardware: Array.isArray(q.state.hardware) ? JSON.parse(JSON.stringify(q.state.hardware)) : [] };
+      hardware: Array.isArray(q.state.hardware) ? JSON.parse(JSON.stringify(q.state.hardware)) : [],
+      printers: Math.max(1, Math.floor(num(q.state.printers, 2))),
+      hoursPerDay: Math.min(24, Math.max(1, num(q.state.hoursPerDay, 8))),
+      workDays: Array.isArray(q.state.workDays) && q.state.workDays.length ? q.state.workDays.slice() : [1, 2, 3, 4, 5] };
     activeQuoteId = id;
     els.qtyInput.value = state.quantity;
     els.quoteName.value = q.name;
     renderOrderInputs();
+    renderProductionInputs();
     renderHardware();
     persist(); render(); renderSaved();
     setStatus("Loaded “" + q.name + "”.", "ok");
@@ -1688,6 +1851,13 @@
   els.addHwBtn.addEventListener("click", function () {
     state.hardware.push({ id: uid(), name: "", packPrice: 0, packQty: 100, perUnit: 1 });
     persist(); renderHardware(); renderPricing();
+  });
+
+  els.prodPrinters.addEventListener("input", function () {
+    state.printers = Math.max(1, Math.floor(num(els.prodPrinters.value, 1))); persist(); renderProduction();
+  });
+  els.prodHours.addEventListener("input", function () {
+    state.hoursPerDay = Math.min(24, Math.max(1, num(els.prodHours.value, 8))); persist(); renderProduction();
   });
 
   els.saveQuoteBtn.addEventListener("click", saveQuote);
