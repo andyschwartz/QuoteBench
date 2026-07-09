@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QuoteBench</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232dd4bf'/%3E%3Cpath d='M8 22V10m0 12h16M8 10h9m-9 6h13' fill='none' stroke='%230a1512' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232dd4bf'/%3E%3Crect x='8' y='17' width='3.4' height='7' rx='1.4' fill='%230a1512'/%3E%3Crect x='14.3' y='12' width='3.4' height='12' rx='1.4' fill='%230a1512'/%3E%3Crect x='20.6' y='8' width='3.4' height='16' rx='1.4' fill='%230a1512'/%3E%3C/svg%3E">
 <style>
   :root {
     color-scheme: dark;
@@ -30,6 +30,7 @@
     --divider: #262d31;
     --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 16px 40px -12px rgba(0,0,0,0.55);
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-card: 0 1px 1px rgba(0,0,0,0.24), 0 6px 18px -8px rgba(0,0,0,0.5);
     --focus-ring: 0 0 0 3px rgba(45,212,191,0.28);
   }
 
@@ -57,6 +58,7 @@
     --divider: #e7e9eb;
     --shadow: 0 1px 2px rgba(20,20,30,0.04), 0 16px 40px -14px rgba(20,20,30,0.16);
     --shadow-sm: 0 1px 2px rgba(20,20,30,0.05);
+    --shadow-card: 0 1px 2px rgba(20,20,30,0.05), 0 10px 26px -14px rgba(20,20,30,0.18);
     --focus-ring: 0 0 0 3px rgba(13,148,136,0.22);
   }
 
@@ -174,7 +176,7 @@
   /* ---------- cards ---------- */
   .card {
     background: var(--card); border: 1px solid var(--card-border);
-    border-radius: 16px; box-shadow: var(--shadow-sm);
+    border-radius: 16px; box-shadow: var(--shadow-card);
     padding: 22px; margin-bottom: 20px;
   }
   .card > .card-head {
@@ -225,12 +227,24 @@
   .qty-input input::-webkit-outer-spin-button, .qty-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .qty-input input:focus { outline: none; box-shadow: none; }
 
-  input[type="text"], input[type="number"] {
-    font: inherit; color: var(--text); background: var(--input-bg);
+  input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="tel"], select {
+    font: inherit; font-size: 14.5px; color: var(--text); background: var(--input-bg);
     border: 1px solid var(--input-border); border-radius: 10px;
     padding: 9px 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+  /* appearance:none everywhere except date (it can strip the native calendar picker) */
+  input[type="text"], input[type="number"], input[type="email"], input[type="tel"], select { -webkit-appearance: none; appearance: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+  input[type="date"] { color-scheme: inherit; }
+  input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.7; }
+  input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  /* custom dropdown arrow that matches both themes */
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23838ca0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 11px center; padding-right: 34px; cursor: pointer;
+  }
+  select option { color: var(--text); background: var(--card); }
+  ::placeholder { color: var(--text-faint); opacity: 1; }
 
   /* ---------- BOM table ---------- */
   .table-wrap { overflow-x: auto; margin: 0 -22px -6px; padding: 0 22px; }
@@ -434,6 +448,51 @@
   .quote-notes { margin-bottom: 12px; min-height: 44px; }
   .quote-fields .field input[type="date"] { width: 100%; }
 
+  /* ---------- mobile ---------- */
+  @media (max-width: 640px) {
+    body { padding: 18px 12px 56px; }
+    .card { padding: 18px 15px; border-radius: 14px; margin-bottom: 16px; }
+    header { margin-bottom: 22px; }
+
+    /* No phone zoom on tap: every field is >= 16px */
+    input[type="text"], input[type="number"], input[type="date"], input[type="email"],
+    input[type="tel"], select, textarea, .co-address, .quote-notes, .per-unit-input { font-size: 16px !important; }
+    .qty-input input { font-size: 22px !important; }
+
+    /* Thumb-sized controls */
+    .btn { min-height: 48px; font-size: 15px; padding: 0 18px; }
+    .btn.small { min-height: 40px; }
+    .icon-btn { width: 46px; height: 46px; }
+    .quote-toolbar .btn, .dz-actions .btn, .modal-actions .btn { flex: 1 1 auto; }
+    .saved-item .si-actions .btn.small { min-height: 40px; }
+
+    /* Multi-column stat/field grids relax to one or two columns */
+    .totals, .prod-stats { grid-template-columns: 1fr 1fr !important; }
+    .cost-grid, .quote-fields { grid-template-columns: 1fr !important; }
+
+    /* BOM table -> stacked, labeled cards */
+    .table-wrap { overflow-x: visible; margin: 0; padding: 0; }
+    table.bom { min-width: 0; }
+    table.bom thead { display: none; }
+    table.bom, table.bom tbody { display: block; width: 100%; }
+    table.bom tr { display: block; border: 1px solid var(--card-border); border-radius: 12px; background: var(--bg-alt); margin-bottom: 12px; overflow: hidden; }
+    table.bom td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 14px; border: none; border-top: 1px solid var(--divider); text-align: right; }
+    table.bom tr td:first-child { border-top: none; }
+    table.bom td::before { content: attr(data-label); text-align: left; font-size: 12px; font-weight: 600; color: var(--text-faint); flex: 0 0 auto; }
+    table.bom td[data-label=""]::before { content: ""; }
+    table.bom .plate-name { text-align: right; }
+    table.bom td[data-label="Colors"] .chips { justify-content: flex-end !important; }
+    .per-unit-input { width: 84px; }
+
+    /* Hardware / materials editors: keep them swipe-scrollable but comfy */
+    .mat-head, .mat-row { min-width: 420px; }
+    .hw-head, .hw-row { min-width: 560px; }
+
+    .saved-item { flex-wrap: wrap; }
+    .saved-item .si-actions { width: 100%; }
+    .saved-item .si-actions .btn { flex: 1 1 auto; }
+  }
+
   /* ---------- customer print sheet (printed from the main document) ---------- */
   #printSheet { display: none; }
   @media print {
@@ -490,7 +549,7 @@
 <!-- ============ sign-in gate ============ -->
 <div class="auth-gate" id="authGate">
   <div class="gate-card">
-    <svg class="gate-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M8 22V10m0 12h16M8 10h9m-9 6h13" fill="none" stroke="var(--accent-text)" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <svg class="gate-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><rect x="8" y="17" width="3.4" height="7" rx="1.4" fill="var(--accent-text)"/><rect x="14.3" y="12" width="3.4" height="12" rx="1.4" fill="var(--accent-text)"/><rect x="20.6" y="8" width="3.4" height="16" rx="1.4" fill="var(--accent-text)"/></svg>
     <h1>QuoteBench</h1>
     <p class="gate-tag">Batch print quoting</p>
     <p class="auth-copy">Sign in to save, recall, modify, and send quotes &mdash; synced to your account across every device.</p>
@@ -506,7 +565,7 @@
 <div class="app" id="appRoot" hidden>
   <header>
     <div class="brand">
-      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M8 22V10m0 12h16M8 10h9m-9 6h13" fill="none" stroke="var(--accent-text)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><rect x="8" y="17" width="3.4" height="7" rx="1.4" fill="var(--accent-text)"/><rect x="14.3" y="12" width="3.4" height="12" rx="1.4" fill="var(--accent-text)"/><rect x="20.6" y="8" width="3.4" height="16" rx="1.4" fill="var(--accent-text)"/></svg>
       <h1>QuoteBench</h1>
       <span class="tag">Batch print quoting</span>
     </div>
@@ -1047,16 +1106,16 @@
         return '<span class="chip" style="background:' + esc(c.hex) + '" title="' + esc(c.name || c.hex) + '"></span>';
       }).join("");
       rows += '<tr class="' + (inc ? "" : "excluded") + '" data-id="' + p.id + '">' +
-        '<td class="c keep-op"><label class="cbx"><input type="checkbox" class="inc-cbx" ' + (inc ? "checked" : "") + '>' +
+        '<td class="c keep-op" data-label="Use"><label class="cbx"><input type="checkbox" class="inc-cbx" ' + (inc ? "checked" : "") + '>' +
           '<span class="box"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg></span></label></td>' +
-        '<td><div class="plate-name">' + esc(p.name) + '<span class="file">' + esc(p.file || "") + '</span></div></td>' +
-        '<td class="r"><span class="cell-num num">' + fmtInt(p.yield) + '</span></td>' +
-        '<td class="r"><span class="cell-num num">' + fmtTime(p.minutes) + '</span></td>' +
-        '<td class="r"><span class="cell-num num">' + fmtInt(p.grams) + '</span> <span class="cell-sub">g</span></td>' +
-        '<td class="c"><div class="chips" style="justify-content:center;">' + chips + '</div></td>' +
-        '<td class="c keep-op"><input type="number" class="per-unit-input num peru" min="0" step="1" value="' + esc(p.perUnit) + '"></td>' +
-        '<td class="r"><span class="plates-needed num">' + fmtInt(need) + '</span></td>' +
-        '<td class="c keep-op"><button class="row-del" title="Remove plate"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>' +
+        '<td data-label="Plate / part"><div class="plate-name">' + esc(p.name) + '<span class="file">' + esc(p.file || "") + '</span></div></td>' +
+        '<td class="r" data-label="Yield / plate"><span class="cell-num num">' + fmtInt(p.yield) + '</span></td>' +
+        '<td class="r" data-label="Print time"><span class="cell-num num">' + fmtTime(p.minutes) + '</span></td>' +
+        '<td class="r" data-label="Filament"><span class="cell-num num">' + fmtInt(p.grams) + '</span> <span class="cell-sub">g</span></td>' +
+        '<td class="c" data-label="Colors"><div class="chips" style="justify-content:center;">' + chips + '</div></td>' +
+        '<td class="c keep-op" data-label="Per unit"><input type="number" class="per-unit-input num peru" min="0" step="1" value="' + esc(p.perUnit) + '"></td>' +
+        '<td class="r" data-label="Plates needed"><span class="plates-needed num">' + fmtInt(need) + '</span></td>' +
+        '<td class="c keep-op" data-label=""><button class="row-del" title="Remove plate"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></td>' +
       '</tr>';
     });
 
