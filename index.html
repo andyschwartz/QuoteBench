@@ -1919,15 +1919,12 @@
     var prevTitle = document.title;
     document.title = fname;   // some browsers use the top document's title for the PDF filename
 
+    // Build the doc via srcdoc + wait for the iframe's own load event, which fires only after
+    // every image (the logo) has finished loading. This is far more reliable for printing
+    // images than document.write, where print() can fire before the image is committed.
     var iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
     iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-    document.body.appendChild(iframe);
-    var idoc = iframe.contentWindow.document;
-    idoc.open();
-    idoc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(fname) +
-      '</title><style>' + PRINT_CSS + '</style></head><body>' + built.html + '</body></html>');
-    idoc.close();
 
     var done = false;
     function go() {
@@ -1935,21 +1932,12 @@
       try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
       setTimeout(function () { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); document.title = prevTitle; }, 1000);
     }
-    // Wait until the logo is actually decoded & paint-ready before printing — a data-URL image
-    // often reports "complete" instantly, which would print before it renders.
-    var settle = function () { setTimeout(go, 90); };
-    var img = idoc.querySelector("img.pq-logo");
-    if (!img) {
-      setTimeout(go, 30);
-    } else if (img.decode) {
-      img.decode().then(settle, settle);
-    } else if (img.complete && img.naturalWidth > 0) {
-      settle();
-    } else {
-      img.addEventListener("load", settle);
-      img.addEventListener("error", settle);
-    }
-    setTimeout(go, 2500);   // hard fallback so it can never hang
+    iframe.onload = go;
+
+    iframe.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(fname) +
+      '</title><style>' + PRINT_CSS + '</style></head><body>' + built.html + '</body></html>';
+    document.body.appendChild(iframe);
+    setTimeout(go, 3000);   // hard fallback so it can never hang
   }
 
   function applyTheme(t) {
