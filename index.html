@@ -1795,12 +1795,13 @@
     setStatus("Quote deleted.");
   }
 
-  // A completely blank quote — clears every entry field. Shop Settings are untouched.
+  // A blank quote — clears every entry field, but keeps the bench setup
+  // (printers / hours / work days) sticky since it rarely changes between jobs.
   function blankState() {
     return { quantity: 25, parts: [], hardware: [], customer: "", product: "", quoteDate: todayStr(), notes: "",
       assembly: 0, packing: 0, shipping: 0, adjust: 0,
       discountType: "percent", discountValue: 0, depositPct: 0,
-      printers: 2, hoursPerDay: 8, workDays: [1, 2, 3, 4, 5] };
+      printers: state.printers, hoursPerDay: state.hoursPerDay, workDays: state.workDays.slice() };
   }
 
   function newQuote() {
