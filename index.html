@@ -1795,13 +1795,24 @@
     setStatus("Quote deleted.");
   }
 
+  // A completely blank quote — clears every entry field. Shop Settings are untouched.
+  function blankState() {
+    return { quantity: 25, parts: [], hardware: [], customer: "", product: "", quoteDate: todayStr(), notes: "",
+      assembly: 0, packing: 0, shipping: 0, adjust: 0,
+      discountType: "percent", discountValue: 0, depositPct: 0,
+      printers: 2, hoursPerDay: 8, workDays: [1, 2, 3, 4, 5] };
+  }
+
   function newQuote() {
+    var hasData = state.parts.length || state.hardware.length ||
+      state.customer || state.product || state.notes ||
+      state.assembly || state.packing || state.shipping || state.adjust ||
+      state.discountValue || state.depositPct;
+    if (hasData && typeof window.confirm === "function" &&
+        !window.confirm("Start a new blank quote? This clears all the entry fields. Your saved quotes are kept.")) return;
     activeQuoteId = null;
-    state.customer = ""; state.product = ""; state.notes = ""; state.quoteDate = todayStr();
-    els.quoteCustomer.value = ""; els.quoteProduct.value = ""; els.quoteNotes.value = "";
-    els.quoteDate.value = state.quoteDate;
-    persist(); renderSaved(); updateQuoteBadge();
-    setStatus("Started a new quote. Current plates kept — edit and save.");
+    applyQuoteState(blankState());
+    setStatus("Cleared — blank quote ready.", "ok");
   }
 
   function renderSaved() {
